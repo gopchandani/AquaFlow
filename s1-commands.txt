@@ -1,8 +1,8 @@
 table_add table_code ingress_index_1 1 =>
 table_add table_code ingress_index_2 2 =>
 
-table_add table_ingress_clone ingress_cloned_packets_loop 1 => 2
-table_add table_ingress_clone ingress_cloned_packets_loop 2 => 2
+table_add table_ingress_clone ingress_cloned_packets_loop 1 =>
+table_add table_ingress_clone ingress_cloned_packets_loop 2 =>
 
 table_add table_ingress_clone ingress_cloning_start 0 =>
 table_add table_egress_clone egress_cloning_step 1 0 => 

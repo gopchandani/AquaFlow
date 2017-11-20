@@ -144,6 +144,15 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
+    action send_from_ingress_2(bit<9> egress_port, bit<8> packet_status) {
+        hdr.p4calc.packet_status = packet_status;
+
+        /* Send the packet back to the port it came from */
+        standard_metadata.egress_spec = egress_port;
+    }
+
+
+
     action ingress_index_1 () {
         reg_operands.write(1, hdr.p4calc.uncoded_payload);
         hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
@@ -173,7 +182,7 @@ control MyIngress(inout headers hdr,
         meta.extra_metadata.clone_at_egress = 1;
     }
 
-    action ingress_cloned_packets_loop (bit<16> num_copies) { 
+    action ingress_cloned_packets_loop () { 
         // This causes the packet to be not cloned at egress 
         meta.extra_metadata.clone_at_egress = 0;
     }
@@ -184,6 +193,16 @@ control MyIngress(inout headers hdr,
               }
 
         actions = {_nop; ingress_cloning_start; ingress_cloned_packets_loop; send_from_ingress;}
+        size = 10;
+    default_action = _nop;
+    }
+
+    table table_mac_fwd {
+        key = {
+                hdr.ethernet.dstAddr: exact;
+              }
+
+        actions = {_nop; send_from_ingress_2;}
         size = 10;
     default_action = _nop;
     }
@@ -223,6 +242,7 @@ control MyIngress(inout headers hdr,
 
             //Logic for forwarding
             else if (hdr.p4calc.packet_status == 0x02) {
+                table_mac_fwd.apply();
             }
             else
             {

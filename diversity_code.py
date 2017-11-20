@@ -31,7 +31,7 @@ def main():
     pkt = Ether(dst='00:04:00:00:00:00', type=0x1234) / P4calc(uncoded_payload=data1)
     pkt = pkt/' '
 
-    for i in range(10):
+    for i in range(2):
         print "Sending packet #", i+1
         sendp(pkt, iface=iface)
 

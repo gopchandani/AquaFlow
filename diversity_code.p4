@@ -76,7 +76,7 @@ struct intrinsic_metadata_t {
 struct extra_metadata_t { 
     bit<16> clone_number;
     bit<16> operand_index;
-    bit<1> do_cloning_at_egress;
+    bit<1> clone_at_egress;
 }
 
 struct metadata {
@@ -132,6 +132,7 @@ control MyIngress(inout headers hdr,
                   inout standard_metadata_t standard_metadata) {
 
     register<payload_t>(2) reg_operands;
+    register<bit<32>>(1) reg_operand_index;
 
     action _nop () { 
     }
@@ -145,12 +146,6 @@ control MyIngress(inout headers hdr,
 
         /* Send the packet back to the port it came from */
         standard_metadata.egress_spec = egress_port;
-    }
-
-    action ingress_index_0 () {
-        reg_operands.write(0, hdr.p4calc.uncoded_payload);
-        hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
-        send_from_ingress(2);
     }
 
     action ingress_index_1 () {
@@ -173,21 +168,21 @@ control MyIngress(inout headers hdr,
                meta.extra_metadata.operand_index: exact;
               }
 
-        actions = {_nop; ingress_index_0; ingress_index_1; ingress_index_2;}
+        actions = {_nop; ingress_index_1; ingress_index_2;}
         size = 10;
     default_action = _nop;
     }
 
     action ingress_cloning_start() {
-        meta.extra_metadata.do_cloning_at_egress = 1;
+        meta.extra_metadata.clone_at_egress = 1;
     }
 
     action ingress_cloned_packets_loop (bit<16> num_copies) { 
         // This causes the packet to be not cloned at egress 
-        meta.extra_metadata.do_cloning_at_egress = 0;
+        meta.extra_metadata.clone_at_egress = 0;
     }
 
-    table table_ingress {
+    table table_ingress_clone {
         key = {    
                meta.extra_metadata.clone_number: exact;
               }
@@ -197,18 +192,37 @@ control MyIngress(inout headers hdr,
     default_action = _nop;
     }
 
-    apply {
+    apply 
+    {
         if (hdr.p4calc.isValid()) {
-            switch(table_ingress.apply().action_run) {
-                ingress_cloned_packets_loop: {
-                    table_code.apply();
-                }
-                _nop: {
-                }
-            }
 
+            bit<32> operand_index;
+            reg_operand_index.read(operand_index, 0);
+             
+            // If it is an alternate packet AND not a cloned packet, send it out
+            if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
+            {
+                reg_operands.write(0, hdr.p4calc.uncoded_payload);
+                hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
+                send_from_ingress(2);
+                reg_operand_index.write(0, 1);
+            } 
+
+            // Process the cloned packets and do the coding.
+            else
+            {
+                switch(table_ingress_clone.apply().action_run) 
+                {
+                    ingress_cloned_packets_loop: 
+                    {
+                        table_code.apply();
+                    }
+                }
+                reg_operand_index.write(0, 0);
+            }
         }
-        else {
+        else 
+        {
             mark_to_drop();
         }
     }
@@ -235,9 +249,9 @@ control MyEgress(inout headers hdr,
         mark_to_drop();
     }
 
-    table table_egress {
+    table table_egress_clone {
         key = {    
-               meta.extra_metadata.do_cloning_at_egress: exact;
+               meta.extra_metadata.clone_at_egress: exact;
                meta.extra_metadata.clone_number: exact;
               }
         actions = {_nop; egress_cloning_step; egress_cloning_stop;}
@@ -246,7 +260,7 @@ control MyEgress(inout headers hdr,
     }
     apply { 
         if (hdr.p4calc.isValid()) {
-            table_egress.apply();
+            table_egress_clone.apply();
         }
         else {
             mark_to_drop();

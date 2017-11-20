@@ -33,18 +33,14 @@ header ethernet_t {
     bit<16> etherType;
 }
 
-/*
- * This is a custom protocol header for the calculator. We'll use 
- * ethertype 0x1234 for is (see parser)
- */
-const bit<16> P4CALC_ETYPE = 0x1234;
-const bit<8>  P4CALC_P     = 0x50;   // 'P'
-const bit<8>  P4CALC_4     = 0x34;   // '4'
-const bit<8>  P4CALC_VER   = 0x01;   // v0.1
+const bit<16> CODING_ETYPE = 0x1234;
+const bit<8>  CODING_P     = 0x50;   // 'P'
+const bit<8>  CODING_4     = 0x34;   // '4'
+const bit<8>  CODING_VER   = 0x01;   // v0.1
 
 typedef bit<32> payload_t;
 
-header p4calc_t {
+header coding_hdr_t {
     bit<8>  p;
     bit<8>  four;
     bit<8>  ver;
@@ -59,7 +55,7 @@ header p4calc_t {
  */
 struct headers {
     ethernet_t   ethernet;
-    p4calc_t     p4calc;
+    coding_hdr_t     p4calc;
 }
 
 /*
@@ -95,16 +91,16 @@ parser MyParser(packet_in packet,
     state start {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            P4CALC_ETYPE : check_p4calc;
+            CODING_ETYPE : check_p4calc;
             default      : accept;
         }
     }
     
     state check_p4calc {
-        transition select(packet.lookahead<p4calc_t>().p,
-        packet.lookahead<p4calc_t>().four,
-        packet.lookahead<p4calc_t>().ver) {
-            (P4CALC_P, P4CALC_4, P4CALC_VER) : parse_p4calc;
+        transition select(packet.lookahead<coding_hdr_t>().p,
+        packet.lookahead<coding_hdr_t>().four,
+        packet.lookahead<coding_hdr_t>().ver) {
+            (CODING_P, CODING_4, CODING_VER) : parse_p4calc;
             default                          : accept;
         }
     }

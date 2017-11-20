@@ -48,7 +48,7 @@ header p4calc_t {
     bit<8>  p;
     bit<8>  four;
     bit<8>  ver;
-    bit<8>  op;
+    bit<8>  packet_status;
     payload_t uncoded_payload;
     payload_t coded_payload;
 }
@@ -137,12 +137,14 @@ control MyIngress(inout headers hdr,
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port) {
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_status) {
         /* Swap the MAC addresses */
         bit<48> tmp;
         tmp = hdr.ethernet.dstAddr;
         hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
         hdr.ethernet.srcAddr = tmp;
+
+        hdr.p4calc.packet_status = packet_status;
 
         /* Send the packet back to the port it came from */
         standard_metadata.egress_spec = egress_port;
@@ -151,7 +153,7 @@ control MyIngress(inout headers hdr,
     action ingress_index_1 () {
         reg_operands.write(1, hdr.p4calc.uncoded_payload);
         hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
-        send_from_ingress(3);
+        send_from_ingress(3, 0x02);
     }
 
     action ingress_index_2 () {
@@ -160,7 +162,7 @@ control MyIngress(inout headers hdr,
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
         hdr.p4calc.coded_payload = operand1 ^ operand2;
-        send_from_ingress(4);
+        send_from_ingress(4, 0x02);
     }
 
     table table_code {
@@ -196,30 +198,43 @@ control MyIngress(inout headers hdr,
     {
         if (hdr.p4calc.isValid()) {
 
-            bit<32> operand_index;
-            reg_operand_index.read(operand_index, 0);
-             
-            // If it is an alternate packet AND not a cloned packet, send it out
-            if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
-            {
-                reg_operands.write(0, hdr.p4calc.uncoded_payload);
-                hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
-                send_from_ingress(2);
-                reg_operand_index.write(0, 1);
-            } 
+            //Logic for Coding
 
-            // Process the cloned packets and do the coding.
+            if (hdr.p4calc.packet_status == 0x01) {
+                bit<32> operand_index;
+                reg_operand_index.read(operand_index, 0);
+                 
+                // If it is an alternate packet AND not a cloned packet, send it out
+                if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
+                {
+                    reg_operands.write(0, hdr.p4calc.uncoded_payload);
+                    hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
+                    send_from_ingress(2, 0x02);
+                    reg_operand_index.write(0, 1);
+                } 
+
+                // Process the cloned packets and do the coding.
+                else
+                {
+                    switch(table_ingress_clone.apply().action_run) 
+                    {
+                        ingress_cloned_packets_loop: 
+                        {
+                            table_code.apply();
+                        }
+                    }
+                    reg_operand_index.write(0, 0);
+                }
+            }
+
+            //Logic for forwarding
+            else if (hdr.p4calc.packet_status == 0x02) {
+            }
             else
             {
-                switch(table_ingress_clone.apply().action_run) 
-                {
-                    ingress_cloned_packets_loop: 
-                    {
-                        table_code.apply();
-                    }
-                }
-                reg_operand_index.write(0, 0);
+                mark_to_drop();
             }
+
         }
         else 
         {

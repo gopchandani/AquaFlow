@@ -17,7 +17,7 @@ class P4calc(Packet):
     fields_desc = [ StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),
-                    StrFixedLenField("op", "+", length=1),
+                    XByteField("packet_status", 0x01),
                     IntField("uncoded_payload", 0),
                     IntField("coded_payload", 0xDEADBABE)]
 

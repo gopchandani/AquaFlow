@@ -6,6 +6,8 @@ import socket
 import random
 import struct
 import re
+import random
+import string
 
 from scapy.all import Packet, hexdump, bind_layers
 from scapy.all import Ether, StrFixedLenField, XByteField, IntField
@@ -17,7 +19,7 @@ class CodingPacket(Packet):
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),
                     XByteField("packet_status", 0x01),
-                    IntField("packet_payload", 0xDEADBABE)]
+                    StrFixedLenField("packet_payload", ' '*100, length=100)]
 
 bind_layers(Ether, CodingPacket, type=0x1234)
 
@@ -26,12 +28,16 @@ def main():
     iface = 'h1-eth0'
     data1 = 30
 
-    pkt = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingPacket(packet_payload=data1)
-    pkt = pkt/' '
+    pktA = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingPacket(packet_payload="A" * 100)
+    pktA = pktA/' '
 
-    for i in range(2):
+    pktB = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingPacket(packet_payload="B" * 100)
+    pktB = pktB/' '
+
+    for i in range(1):
         print "Sending packet #", i+1
-        sendp(pkt, iface=iface)
+        sendp(pktA, iface=iface)
+        sendp(pktB, iface=iface)
 
 if __name__ == '__main__':
     main()

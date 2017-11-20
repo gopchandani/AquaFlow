@@ -38,7 +38,7 @@ const bit<8>  CODING_P     = 0x50;   // 'P'
 const bit<8>  CODING_4     = 0x34;   // '4'
 const bit<8>  CODING_VER   = 0x01;   // v0.1
 
-typedef bit<32> payload_t;
+typedef bit<800> payload_t;
 
 header coding_hdr_t {
     bit<8>  p;

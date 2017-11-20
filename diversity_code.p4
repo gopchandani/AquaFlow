@@ -49,8 +49,7 @@ header p4calc_t {
     bit<8>  four;
     bit<8>  ver;
     bit<8>  packet_status;
-    payload_t uncoded_payload;
-    payload_t coded_payload;
+    payload_t packet_payload;
 }
 
 /*
@@ -154,8 +153,7 @@ control MyIngress(inout headers hdr,
 
 
     action ingress_index_1 () {
-        reg_operands.write(1, hdr.p4calc.uncoded_payload);
-        hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
+        reg_operands.write(1, hdr.p4calc.packet_payload);
         send_from_ingress(3, 0x02);
     }
 
@@ -164,7 +162,7 @@ control MyIngress(inout headers hdr,
         payload_t operand2;
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
-        hdr.p4calc.coded_payload = operand1 ^ operand2;
+        hdr.p4calc.packet_payload = operand1 ^ operand2;
         send_from_ingress(4, 0x02);
     }
 
@@ -220,8 +218,7 @@ control MyIngress(inout headers hdr,
                 // If it is an alternate packet AND not a cloned packet, send it out
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
                 {
-                    reg_operands.write(0, hdr.p4calc.uncoded_payload);
-                    hdr.p4calc.coded_payload = hdr.p4calc.uncoded_payload;
+                    reg_operands.write(0, hdr.p4calc.packet_payload);
                     send_from_ingress(2, 0x02);
                     reg_operand_index.write(0, 1);
                 } 

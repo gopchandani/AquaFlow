@@ -28,7 +28,7 @@ def main():
     iface = 'h1-eth0'
     data1 = 30
 
-    pkt = Ether(dst='00:04:00:00:00:00', type=0x1234) / P4calc(uncoded_payload=data1)
+    pkt = Ether(dst='00:00:00:00:05:02', type=0x1234) / P4calc(uncoded_payload=data1)
     pkt = pkt/' '
 
     for i in range(2):

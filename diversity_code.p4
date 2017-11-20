@@ -138,12 +138,6 @@ control MyIngress(inout headers hdr,
     }
 
     action send_from_ingress(bit<9> egress_port, bit<8> packet_status) {
-        /* Swap the MAC addresses */
-        bit<48> tmp;
-        tmp = hdr.ethernet.dstAddr;
-        hdr.ethernet.dstAddr = hdr.ethernet.srcAddr;
-        hdr.ethernet.srcAddr = tmp;
-
         hdr.p4calc.packet_status = packet_status;
 
         /* Send the packet back to the port it came from */

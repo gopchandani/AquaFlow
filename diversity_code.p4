@@ -36,6 +36,9 @@ header ethernet_t {
 const bit<16> CODING_ETYPE = 0x1234;
 const bit<8>  CODING_P     = 0x50;   // 'P'
 const bit<8>  CODING_4     = 0x34;   // '4'
+const bit<8>  CODING_A     = 0x41;   // 'A'
+const bit<8>  CODING_B     = 0x42;   // 'B'
+const bit<8>  CODING_X     = 0x58;   // 'X'
 const bit<8>  CODING_VER   = 0x01;   // v0.1
 
 typedef bit<800> payload_t;
@@ -45,6 +48,7 @@ header coding_hdr_t {
     bit<8>  four;
     bit<8>  ver;
     bit<8>  packet_status;
+    bit<8>  packet_contents;
     payload_t packet_payload;
 }
 
@@ -132,8 +136,9 @@ control MyIngress(inout headers hdr,
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port, bit<8> packet_status) {
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_status, bit<8> packet_contents) {
         hdr.p4calc.packet_status = packet_status;
+        hdr.p4calc.packet_contents = packet_contents;
 
         /* Send the packet back to the port it came from */
         standard_metadata.egress_spec = egress_port;
@@ -150,7 +155,7 @@ control MyIngress(inout headers hdr,
 
     action ingress_index_1 () {
         reg_operands.write(1, hdr.p4calc.packet_payload);
-        send_from_ingress(3, 0x02);
+        send_from_ingress(3, 0x02, hdr.p4calc.packet_contents);
     }
 
     action ingress_index_2 () {
@@ -159,7 +164,7 @@ control MyIngress(inout headers hdr,
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
         hdr.p4calc.packet_payload = operand1 ^ operand2;
-        send_from_ingress(4, 0x02);
+        send_from_ingress(4, 0x02, CODING_X);
     }
 
     table table_code {
@@ -215,7 +220,7 @@ control MyIngress(inout headers hdr,
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
                 {
                     reg_operands.write(0, hdr.p4calc.packet_payload);
-                    send_from_ingress(2, 0x02);
+                    send_from_ingress(2, 0x02, hdr.p4calc.packet_contents);
                     reg_operand_index.write(0, 1);
                 } 
 

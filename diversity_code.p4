@@ -186,7 +186,7 @@ control MyIngress(inout headers hdr,
                meta.extra_metadata.clone_number: exact;
               }
 
-        actions = {_nop; ingress_cloning_start; ingress_cloned_packets_loop; send_from_ingress;}
+        actions = {_nop; ingress_cloned_packets_loop; send_from_ingress;}
         size = 10;
     default_action = _nop;
     }
@@ -211,7 +211,7 @@ control MyIngress(inout headers hdr,
                 bit<32> operand_index;
                 reg_operand_index.read(operand_index, 0);
                  
-                // If it is an alternate packet AND not a cloned packet, send it out
+                // If it is first of two packets AND not a cloned packet, send it out
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
                 {
                     reg_operands.write(0, hdr.p4calc.packet_payload);
@@ -219,8 +219,16 @@ control MyIngress(inout headers hdr,
                     reg_operand_index.write(0, 1);
                 } 
 
-                // Process the cloned packets and do the coding.
-                else
+                // If it is second of two packets AND not a cloned packet, don't send it out
+                // but keep track of it 
+                else if (operand_index == 1 && meta.extra_metadata.clone_number == 0) 
+                {
+                    ingress_cloning_start();
+                    reg_operand_index.write(0, 0);
+                }
+
+                // If it is a cloned packet, do the coding and then send them out via table_code
+                if (meta.extra_metadata.clone_number > 0) 
                 {
                     switch(table_ingress_clone.apply().action_run) 
                     {
@@ -229,7 +237,6 @@ control MyIngress(inout headers hdr,
                             table_code.apply();
                         }
                     }
-                    reg_operand_index.write(0, 0);
                 }
             }
 
@@ -237,6 +244,7 @@ control MyIngress(inout headers hdr,
             else if (hdr.p4calc.packet_status == 0x02) {
                 table_mac_fwd.apply();
             }
+            //Logic for decoding
             else
             {
                 mark_to_drop();

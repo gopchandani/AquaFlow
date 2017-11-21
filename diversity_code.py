@@ -26,7 +26,7 @@ bind_layers(Ether, CodingPacket, type=0x1234)
 def main():
 
     iface = 'h1-eth0'
-    data1 = 30
+    num_pkts = int(sys.argv[1])
 
     pktA = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingPacket(packet_payload="A" * 100)
     pktA = pktA/' '
@@ -34,8 +34,7 @@ def main():
     pktB = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingPacket(packet_payload="B" * 100)
     pktB = pktB/' '
 
-    for i in range(1):
-        print "Sending packet #", i+1
+    for i in range(num_pkts/2):
         sendp(pktA, iface=iface)
         sendp(pktB, iface=iface)
 

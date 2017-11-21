@@ -247,7 +247,7 @@ control MyIngress(inout headers hdr,
             //Logic for decoding
             else
             {
-                mark_to_drop();
+                table_mac_fwd.apply();
             }
 
         }

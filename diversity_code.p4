@@ -155,7 +155,7 @@ control MyIngress(inout headers hdr,
 
     action ingress_index_1 () {
         reg_operands.write(1, hdr.p4calc.packet_payload);
-        send_from_ingress(3, 0x02, hdr.p4calc.packet_contents);
+        send_from_ingress(3, 0x02, CODING_B);
     }
 
     action ingress_index_2 () {
@@ -220,7 +220,7 @@ control MyIngress(inout headers hdr,
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
                 {
                     reg_operands.write(0, hdr.p4calc.packet_payload);
-                    send_from_ingress(2, 0x02, hdr.p4calc.packet_contents);
+                    send_from_ingress(2, 0x02, CODING_A);
                     reg_operand_index.write(0, 1);
                 } 
 

@@ -45,6 +45,9 @@ const bit<8>  CODING_PACKET_TO_CODE     = 0x01;
 const bit<8>  CODING_PACKET_TO_FORWARD  = 0x02;
 const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
 
+
+const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 50;
+
 typedef bit<800> payload_t;
 
 header coding_hdr_t {
@@ -281,7 +284,11 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer;
+    register<bit<32>>(1) reg_a_index;
+    register<bit<32>>(1) reg_b_index;
+    register<bit<32>>(1) reg_x_index;
+ 
     action _nop () { 
     }
     action egress_cloning_step() {
@@ -305,9 +312,16 @@ control MyEgress(inout headers hdr,
     default_action = _nop;
     }
     apply { 
+        // Logic for coding
         if (hdr.p4calc.isValid()) {
-            table_egress_clone.apply();
+            if (hdr.p4calc.packet_todo == CODING_PACKET_TO_CODE) {
+                table_egress_clone.apply();
+            }
         }
+        //Logic for decoding
+        else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
+        }
+ 
         else {
             mark_to_drop();
         }

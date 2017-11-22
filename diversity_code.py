@@ -18,7 +18,7 @@ class CodingPacket(Packet):
     fields_desc = [ StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),
-                    XByteField("packet_status", 0x01),
+                    XByteField("packet_todo", 0x01),
                     StrFixedLenField("packet_contents", ' ', length=1),
                     StrFixedLenField("packet_payload", ' '*100, length=100)]
 

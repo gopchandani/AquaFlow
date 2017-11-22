@@ -41,13 +41,17 @@ const bit<8>  CODING_B     = 0x42;   // 'B'
 const bit<8>  CODING_X     = 0x58;   // 'X'
 const bit<8>  CODING_VER   = 0x01;   // v0.1
 
+const bit<8>  CODING_PACKET_TO_CODE     = 0x01;
+const bit<8>  CODING_PACKET_TO_FORWARD  = 0x02;
+const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
+
 typedef bit<800> payload_t;
 
 header coding_hdr_t {
     bit<8>  p;
     bit<8>  four;
     bit<8>  ver;
-    bit<8>  packet_status;
+    bit<8>  packet_todo;
     bit<8>  packet_contents;
     payload_t packet_payload;
 }
@@ -136,16 +140,16 @@ control MyIngress(inout headers hdr,
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port, bit<8> packet_status, bit<8> packet_contents) {
-        hdr.p4calc.packet_status = packet_status;
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_todo, bit<8> packet_contents) {
+        hdr.p4calc.packet_todo = packet_todo;
         hdr.p4calc.packet_contents = packet_contents;
 
         /* Send the packet back to the port it came from */
         standard_metadata.egress_spec = egress_port;
     }
 
-    action send_from_ingress_2(bit<9> egress_port, bit<8> packet_status) {
-        hdr.p4calc.packet_status = packet_status;
+    action send_from_ingress_2(bit<9> egress_port, bit<8> packet_todo) {
+        hdr.p4calc.packet_todo = packet_todo;
 
         /* Send the packet back to the port it came from */
         standard_metadata.egress_spec = egress_port;
@@ -212,7 +216,7 @@ control MyIngress(inout headers hdr,
 
             //Logic for Coding
 
-            if (hdr.p4calc.packet_status == 0x01) {
+            if (hdr.p4calc.packet_todo == CODING_PACKET_TO_CODE) {
                 bit<32> operand_index;
                 reg_operand_index.read(operand_index, 0);
                  
@@ -244,14 +248,12 @@ control MyIngress(inout headers hdr,
                     }
                 }
             }
-
             //Logic for forwarding
-            else if (hdr.p4calc.packet_status == 0x02) {
+            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_FORWARD) {
                 table_mac_fwd.apply();
             }
             //Logic for decoding
-            else
-            {
+            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
                 table_mac_fwd.apply();
             }
 

@@ -45,6 +45,9 @@ const bit<8>  CODING_PACKET_TO_CODE     = 0x01;
 const bit<8>  CODING_PACKET_TO_FORWARD  = 0x02;
 const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
 
+const bit<8> DONT_CLONE = 0;
+const bit<8> DO_CLONE = 1;
+const bit<8> POST_CLONE = 2;
 
 const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 50;
 
@@ -83,7 +86,7 @@ struct intrinsic_metadata_t {
 struct extra_metadata_t { 
     bit<16> clone_number;
     bit<16> operand_index;
-    bit<1>  clone_at_egress;
+    bit<8>  clone_status;
     bit<32> coded_packets_seqnum;
 }
 
@@ -146,27 +149,20 @@ control MyIngress(inout headers hdr,
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port, bit<8> packet_todo, bit<8> packet_contents, bit<32> packet_coded_packets_seqnum) {
- 
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_contents, bit<32> packet_coded_packets_seqnum) {
         hdr.p4calc.coded_packets_seqnum = packet_coded_packets_seqnum;
-        hdr.p4calc.packet_todo = packet_todo;
         hdr.p4calc.packet_contents = packet_contents;
-
-        /* Send the packet back to the port it came from */
         standard_metadata.egress_spec = egress_port;
+        meta.extra_metadata.clone_status = POST_CLONE;
     }
 
-    action send_from_ingress_2(bit<9> egress_port, bit<8> packet_todo) {
-        hdr.p4calc.packet_todo = packet_todo;
-
-        /* Send the packet back to the port it came from */
+    action mac_forward_from_ingress(bit<9> egress_port) {
         standard_metadata.egress_spec = egress_port;
     }
 
     action ingress_index_1 () {
-
         reg_operands.write(1, hdr.p4calc.packet_payload);
-        send_from_ingress(3, 0x02, CODING_B, meta.extra_metadata.coded_packets_seqnum);
+        send_from_ingress(3, CODING_B, meta.extra_metadata.coded_packets_seqnum);
     }
 
     action ingress_index_2 () {
@@ -175,7 +171,7 @@ control MyIngress(inout headers hdr,
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
         hdr.p4calc.packet_payload = operand1 ^ operand2;
-        send_from_ingress(4, 0x02, CODING_X, meta.extra_metadata.coded_packets_seqnum);
+        send_from_ingress(4, CODING_X, meta.extra_metadata.coded_packets_seqnum);
     }
 
     table table_code {
@@ -185,12 +181,12 @@ control MyIngress(inout headers hdr,
 
         actions = {_nop; ingress_index_1; ingress_index_2;}
         size = 10;
-    default_action = _nop;
+        default_action = _nop;
     }
 
     action ingress_cloned_packets_loop () { 
         // This causes the packet to be not cloned at egress 
-        meta.extra_metadata.clone_at_egress = 0;
+        meta.extra_metadata.clone_status = DONT_CLONE;
     }
 
     table table_ingress_clone {
@@ -200,7 +196,7 @@ control MyIngress(inout headers hdr,
 
         actions = {_nop; ingress_cloned_packets_loop; send_from_ingress;}
         size = 10;
-    default_action = _nop;
+        default_action = _nop;
     }
 
     table table_mac_fwd {
@@ -208,9 +204,9 @@ control MyIngress(inout headers hdr,
                 hdr.ethernet.dstAddr: exact;
               }
 
-        actions = {_nop; send_from_ingress_2;}
+        actions = {_nop; mac_forward_from_ingress;}
         size = 10;
-    default_action = _nop;
+        default_action = _nop;
     }
 
     apply 
@@ -230,7 +226,7 @@ control MyIngress(inout headers hdr,
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
                 {
                     reg_operands.write(0, hdr.p4calc.packet_payload);
-                    send_from_ingress(2, 0x02, CODING_A, curr_coded_packets_seqnum);
+                    send_from_ingress(2, CODING_A, curr_coded_packets_seqnum);
                     reg_operand_index.write(0, 1);
                 } 
 
@@ -238,7 +234,7 @@ control MyIngress(inout headers hdr,
                 // but keep track of it 
                 else if (operand_index == 1 && meta.extra_metadata.clone_number == 0) 
                 {
-                    meta.extra_metadata.clone_at_egress = 1;
+                    meta.extra_metadata.clone_status = DO_CLONE;
                     reg_operand_index.write(0, 0);
  
                     // Put the sequence number in the packet metadata so it is maintained
@@ -268,7 +264,6 @@ control MyIngress(inout headers hdr,
             else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
                 table_mac_fwd.apply();
             }
-
         }
         else 
         {
@@ -288,9 +283,10 @@ control MyEgress(inout headers hdr,
     register<bit<32>>(1) reg_a_index;
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
- 
+
     action _nop () { 
     }
+
     action egress_cloning_step() {
         meta.extra_metadata.clone_number = meta.extra_metadata.clone_number + 1;
         meta.extra_metadata.operand_index = meta.extra_metadata.clone_number;
@@ -301,27 +297,40 @@ control MyEgress(inout headers hdr,
     action egress_cloning_stop() {
         mark_to_drop();
     }
+    action egress_cloned_packets_processing() {
+        hdr.p4calc.packet_todo = CODING_PACKET_TO_FORWARD;
+    }
 
     table table_egress_clone {
         key = {    
-               meta.extra_metadata.clone_at_egress: exact;
+               meta.extra_metadata.clone_status: exact;
                meta.extra_metadata.clone_number: exact;
               }
-        actions = {_nop; egress_cloning_step; egress_cloning_stop;}
+        actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_cloned_packets_processing;}
         size = 10;
-    default_action = _nop;
+        default_action = _nop;
     }
     apply { 
-        // Logic for coding
         if (hdr.p4calc.isValid()) {
+            // Logic for coding
             if (hdr.p4calc.packet_todo == CODING_PACKET_TO_CODE) {
                 table_egress_clone.apply();
             }
+            // Logic to forward
+            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_FORWARD) {
+                hdr.p4calc.packet_todo = CODING_PACKET_TO_DECODE;
+            }
+            // Logic for decoding
+            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
+                // If the packet is A or B
+                if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) {
+                }
+                // If the packet is X
+                else if (hdr.p4calc.packet_contents == CODING_X) {
+                    mark_to_drop();
+                }
+            }
         }
-        //Logic for decoding
-        else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
-        }
- 
         else {
             mark_to_drop();
         }

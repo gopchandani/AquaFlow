@@ -8,4 +8,7 @@ table_add table_egress_clone egress_cloning_step 1 0 =>
 table_add table_egress_clone egress_cloning_step 1 1 => 
 table_add table_egress_clone egress_cloning_step 1 2 => 
 
+table_add table_egress_clone egress_cloned_packets_processing 2 1 => 
+table_add table_egress_clone egress_cloned_packets_processing 2 2 => 
+
 mirroring_add 250 1

@@ -1,1 +1,1 @@
-table_add table_mac_fwd send_from_ingress_2 00:00:00:00:05:02 => 2 0x03
+table_add table_mac_fwd mac_forward_from_ingress 00:00:00:00:05:02 => 2

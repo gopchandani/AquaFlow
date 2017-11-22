@@ -53,6 +53,7 @@ header coding_hdr_t {
     bit<8>  ver;
     bit<8>  packet_todo;
     bit<8>  packet_contents;
+    bit<32>  coded_packets_seqnum;
     payload_t packet_payload;
 }
 
@@ -79,7 +80,8 @@ struct intrinsic_metadata_t {
 struct extra_metadata_t { 
     bit<16> clone_number;
     bit<16> operand_index;
-    bit<1> clone_at_egress;
+    bit<1>  clone_at_egress;
+    bit<32> coded_packets_seqnum;
 }
 
 struct metadata {
@@ -136,11 +138,14 @@ control MyIngress(inout headers hdr,
 
     register<payload_t>(2) reg_operands;
     register<bit<32>>(1) reg_operand_index;
+    register<bit<32>>(1) reg_coded_packets_seqnum;
 
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port, bit<8> packet_todo, bit<8> packet_contents) {
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_todo, bit<8> packet_contents, bit<32> packet_coded_packets_seqnum) {
+ 
+        hdr.p4calc.coded_packets_seqnum = packet_coded_packets_seqnum;
         hdr.p4calc.packet_todo = packet_todo;
         hdr.p4calc.packet_contents = packet_contents;
 
@@ -155,11 +160,10 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
-
-
     action ingress_index_1 () {
+
         reg_operands.write(1, hdr.p4calc.packet_payload);
-        send_from_ingress(3, 0x02, CODING_B);
+        send_from_ingress(3, 0x02, CODING_B, meta.extra_metadata.coded_packets_seqnum);
     }
 
     action ingress_index_2 () {
@@ -168,7 +172,7 @@ control MyIngress(inout headers hdr,
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
         hdr.p4calc.packet_payload = operand1 ^ operand2;
-        send_from_ingress(4, 0x02, CODING_X);
+        send_from_ingress(4, 0x02, CODING_X, meta.extra_metadata.coded_packets_seqnum);
     }
 
     table table_code {
@@ -179,10 +183,6 @@ control MyIngress(inout headers hdr,
         actions = {_nop; ingress_index_1; ingress_index_2;}
         size = 10;
     default_action = _nop;
-    }
-
-    action ingress_cloning_start() {
-        meta.extra_metadata.clone_at_egress = 1;
     }
 
     action ingress_cloned_packets_loop () { 
@@ -219,12 +219,15 @@ control MyIngress(inout headers hdr,
             if (hdr.p4calc.packet_todo == CODING_PACKET_TO_CODE) {
                 bit<32> operand_index;
                 reg_operand_index.read(operand_index, 0);
-                 
+
+                bit<32> curr_coded_packets_seqnum;
+                reg_coded_packets_seqnum.read(curr_coded_packets_seqnum, 0);
+
                 // If it is first of two packets AND not a cloned packet, send it out
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
                 {
                     reg_operands.write(0, hdr.p4calc.packet_payload);
-                    send_from_ingress(2, 0x02, CODING_A);
+                    send_from_ingress(2, 0x02, CODING_A, curr_coded_packets_seqnum);
                     reg_operand_index.write(0, 1);
                 } 
 
@@ -232,8 +235,14 @@ control MyIngress(inout headers hdr,
                 // but keep track of it 
                 else if (operand_index == 1 && meta.extra_metadata.clone_number == 0) 
                 {
-                    ingress_cloning_start();
+                    meta.extra_metadata.clone_at_egress = 1;
                     reg_operand_index.write(0, 0);
+ 
+                    // Put the sequence number in the packet metadata so it is maintained
+                    meta.extra_metadata.coded_packets_seqnum = curr_coded_packets_seqnum;
+
+                    // Increase the coded sequence number, this happens every two packets
+                    reg_coded_packets_seqnum.write(0, curr_coded_packets_seqnum + 1);
                 }
 
                 // If it is a cloned packet, do the coding and then send them out via table_code

@@ -20,6 +20,7 @@ class CodingPacket(Packet):
                     XByteField("version", 0x01),
                     XByteField("packet_todo", 0x01),
                     StrFixedLenField("packet_contents", ' ', length=1),
+                    StrFixedLenField("coded_packets_seqnum", ' ', length=4),
                     StrFixedLenField("packet_payload", ' '*100, length=100)]
 
 bind_layers(Ether, CodingPacket, type=0x1234)

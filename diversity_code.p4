@@ -297,7 +297,7 @@ control MyEgress(inout headers hdr,
     action egress_cloning_stop() {
         mark_to_drop();
     }
-    action egress_cloned_packets_processing() {
+    action egress_coded_packets_processing() {
         hdr.p4calc.packet_todo = CODING_PACKET_TO_FORWARD;
     }
 
@@ -306,7 +306,7 @@ control MyEgress(inout headers hdr,
                meta.extra_metadata.clone_status: exact;
                meta.extra_metadata.clone_number: exact;
               }
-        actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_cloned_packets_processing;}
+        actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
         size = 10;
         default_action = _nop;
     }

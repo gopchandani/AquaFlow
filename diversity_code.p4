@@ -327,27 +327,88 @@ control MyEgress(inout headers hdr,
             else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
 
                 bit <32> rcv_index;
-                rcv_index = hdr.p4calc.coded_packets_seqnum;// % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+                bit<32> a_index;
+                bit<32> b_index;
+                bit<32> x_index;
+ 
+                rcv_index = hdr.p4calc.coded_packets_seqnum;
 
                 // Increase the count for coded packets seqnum
                 bit<32> num_received_per_seq_num;
                 reg_num_received_per_seq_num.read(num_received_per_seq_num, rcv_index);
                 reg_num_received_per_seq_num.write(rcv_index, num_received_per_seq_num + 1);
 
- 
-                // If the packet is A
+                // Copy the packet payload in appropriate buffer and update the index
                 if (hdr.p4calc.packet_contents == CODING_A) {
                     reg_payload_decoding_buffer_a.write(rcv_index, hdr.p4calc.packet_payload);
+                    reg_a_index.write(0, rcv_index);
                 }
-                // If the packet is B
+                else
                 if (hdr.p4calc.packet_contents == CODING_B) {
                     reg_payload_decoding_buffer_b.write(rcv_index, hdr.p4calc.packet_payload);
+                    reg_b_index.write(0, rcv_index);
+                }
+                else 
+                if (hdr.p4calc.packet_contents == CODING_X) {
+                    reg_payload_decoding_buffer_x.write(rcv_index, hdr.p4calc.packet_payload);
+                    reg_x_index.write(0, rcv_index);
+                }
+
+                reg_a_index.read(a_index, 0);
+                reg_b_index.read(b_index, 0);
+                reg_x_index.read(x_index, 0);
+
+                // If the packet is A or B
+                if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) {
+                    // If this is the first packet, then send it along
+                    if (num_received_per_seq_num == 0) {
+                    } 
+                    else
+                    // If this is second packet and first was XOR then decode and send two
+                    if (num_received_per_seq_num == 1 && x_index == rcv_index) {
+                        //TODO
+                    }
+                    else
+                    // If this is second packet and first was not a XOR packet, then do nothing
+                    if (num_received_per_seq_num == 1 && x_index != rcv_index) {
+                    }
+                    else
+                    // If this came third, then drop, because the second one did the job presumably
+                    if (num_received_per_seq_num == 2) {
+                        mark_to_drop();
+                    }
                 }
                 // If the packet is X
                 else if (hdr.p4calc.packet_contents == CODING_X) {
-                    reg_payload_decoding_buffer_x.write(rcv_index, hdr.p4calc.packet_payload);
-                    mark_to_drop();
-                }
+                    // If one packet was previously received then decode using XOR
+                    if (num_received_per_seq_num == 1) {
+                        // Pickup the uncoded packet and xor it with this one to get the other payload
+                        payload_t uncoded_payload;
+
+                        if (a_index == rcv_index) 
+                        {
+                            reg_payload_decoding_buffer_a.read(uncoded_payload, rcv_index);
+                            payload_t a_payload;
+                            a_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
+                            hdr.p4calc.packet_payload = a_payload;
+                        }
+                        else
+                        if (b_index == rcv_index) 
+                        {
+                            reg_payload_decoding_buffer_b.read(uncoded_payload, rcv_index);
+                            payload_t b_payload;
+                            b_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
+                            hdr.p4calc.packet_payload = b_payload;
+                        }
+                    } 
+                    else 
+                    // If XOR was the first packet that arrived, then drop and wait for one of the others
+                    // If this came third, then drop, because two already went.
+                    if (num_received_per_seq_num == 0 || num_received_per_seq_num == 2) {
+                        mark_to_drop();
+                    }
+
+                } 
            }
         }
         else {

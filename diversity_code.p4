@@ -49,7 +49,7 @@ const bit<8> DONT_CLONE = 0;
 const bit<8> DO_CLONE = 1;
 const bit<8> POST_CLONE = 2;
 
-const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 50;
+const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 100;
 
 typedef bit<800> payload_t;
 
@@ -279,10 +279,13 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer;
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_a;
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_b;
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_x;
     register<bit<32>>(1) reg_a_index;
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
+    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_received_per_seq_num;
 
     action _nop () { 
     }
@@ -322,14 +325,30 @@ control MyEgress(inout headers hdr,
             }
             // Logic for decoding
             else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
-                // If the packet is A or B
-                if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) {
+
+                bit <32> rcv_index;
+                rcv_index = hdr.p4calc.coded_packets_seqnum;// % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+
+                // Increase the count for coded packets seqnum
+                bit<32> num_received_per_seq_num;
+                reg_num_received_per_seq_num.read(num_received_per_seq_num, rcv_index);
+                reg_num_received_per_seq_num.write(rcv_index, num_received_per_seq_num + 1);
+
+ 
+                // If the packet is A
+                if (hdr.p4calc.packet_contents == CODING_A) {
+                    reg_payload_decoding_buffer_a.write(rcv_index, hdr.p4calc.packet_payload);
+                }
+                // If the packet is B
+                if (hdr.p4calc.packet_contents == CODING_B) {
+                    reg_payload_decoding_buffer_b.write(rcv_index, hdr.p4calc.packet_payload);
                 }
                 // If the packet is X
                 else if (hdr.p4calc.packet_contents == CODING_X) {
+                    reg_payload_decoding_buffer_x.write(rcv_index, hdr.p4calc.packet_payload);
                     mark_to_drop();
                 }
-            }
+           }
         }
         else {
             mark_to_drop();

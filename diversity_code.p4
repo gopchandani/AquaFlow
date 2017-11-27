@@ -50,6 +50,7 @@ const bit<8> DO_CLONE = 1;
 const bit<8> POST_CLONE = 2;
 
 const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 100;
+const bit<32> INIT_CODED_PACKETS_SEQNUM = 1;
 
 typedef bit<800> payload_t;
 
@@ -221,6 +222,10 @@ control MyIngress(inout headers hdr,
 
                 bit<32> curr_coded_packets_seqnum;
                 reg_coded_packets_seqnum.read(curr_coded_packets_seqnum, 0);
+                if (curr_coded_packets_seqnum == 0) {
+                    curr_coded_packets_seqnum = INIT_CODED_PACKETS_SEQNUM;
+                    reg_coded_packets_seqnum.write(0, curr_coded_packets_seqnum);
+                }
 
                 // If it is first of two packets AND not a cloned packet, send it out
                 if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
@@ -333,7 +338,7 @@ control MyEgress(inout headers hdr,
  
                 rcv_index = hdr.p4calc.coded_packets_seqnum;
 
-                // Increase the count for coded packets seqnum
+                // Read and increase the count for coded packets seqnum
                 bit<32> num_received_per_seq_num;
                 reg_num_received_per_seq_num.read(num_received_per_seq_num, rcv_index);
                 reg_num_received_per_seq_num.write(rcv_index, num_received_per_seq_num + 1);
@@ -385,6 +390,10 @@ control MyEgress(inout headers hdr,
                         // Pickup the uncoded packet and xor it with this one to get the other payload
                         payload_t uncoded_payload;
 
+                        if (x_index == rcv_index) 
+                        {
+                        }
+                        else
                         if (a_index == rcv_index) 
                         {
                             reg_payload_decoding_buffer_a.read(uncoded_payload, rcv_index);
@@ -399,6 +408,11 @@ control MyEgress(inout headers hdr,
                             payload_t b_payload;
                             b_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
                             hdr.p4calc.packet_payload = b_payload;
+                        }
+                        else
+                        {
+                            // This should not happen!
+                            //mark_to_drop();
                         }
                     } 
                     else 

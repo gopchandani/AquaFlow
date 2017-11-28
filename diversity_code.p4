@@ -49,7 +49,7 @@ const bit<8> DONT_CLONE = 0;
 const bit<8> DO_CLONE = 1;
 const bit<8> POST_CLONE = 2;
 
-const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 300;
+const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 2;
 const bit<32> INIT_CODED_PACKETS_SEQNUM = 1;
 
 typedef bit<800> payload_t;
@@ -292,6 +292,7 @@ control MyEgress(inout headers hdr,
     register<bit<32>>(1) reg_x_index;
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_received_per_seq_num;
 
+    bit<32> rcv_seqnum;
     bit<32> rcv_index;
     bit<32> a_index;
     bit<32> b_index;
@@ -337,7 +338,8 @@ control MyEgress(inout headers hdr,
             // Logic for decoding
             else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
  
-                rcv_index = hdr.p4calc.coded_packets_seqnum;
+                rcv_seqnum = hdr.p4calc.coded_packets_seqnum;
+                rcv_index = rcv_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
                 // Read and increase the count for coded packets seqnum
                 reg_num_received_per_seq_num.read(num_received_per_seq_num, rcv_index);

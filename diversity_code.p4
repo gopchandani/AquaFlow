@@ -340,10 +340,17 @@ control MyEgress(inout headers hdr,
  
                 rcv_seqnum = hdr.p4calc.coded_packets_seqnum;
                 rcv_index = rcv_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
-
-                // Read and increase the count for coded packets seqnum
                 reg_num_received_per_seq_num.read(num_received_per_seq_num, rcv_index);
-                reg_num_received_per_seq_num.write(rcv_index, num_received_per_seq_num + 1);
+
+                // If this rcv_index has been rolled over, need to initialize instead of increment
+                if (num_received_per_seq_num == 3) {
+                    reg_num_received_per_seq_num.write(rcv_index, 1);
+                }
+                // Otherwise, read and increase the count for coded packets seqnum
+                else
+                {
+                    reg_num_received_per_seq_num.write(rcv_index, num_received_per_seq_num + 1);
+                }
 
                 // Copy the packet payload in appropriate buffer and update the index
                 if (hdr.p4calc.packet_contents == CODING_A) {
@@ -423,7 +430,6 @@ control MyEgress(inout headers hdr,
                     if (num_received_per_seq_num == 0 || num_received_per_seq_num == 2) {
                         mark_to_drop();
                     }
-
                 } 
            }
         }

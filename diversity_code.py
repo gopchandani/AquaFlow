@@ -8,21 +8,12 @@ import struct
 import re
 import random
 import string
-
-from scapy.all import Packet, hexdump, bind_layers
-from scapy.all import Ether, StrFixedLenField, XByteField, IntField
-from scapy.all import sendp, sniff, srp1
 import readline
 
-class CodingPacket(Packet):
-    fields_desc = [ StrFixedLenField("P", "P", length=1),
-                    StrFixedLenField("Four", "4", length=1),
-                    XByteField("version", 0x01),
-                    XByteField("packet_todo", 0x01),
-                    StrFixedLenField("packet_contents", ' ', length=1),
-                    StrFixedLenField("coded_packets_seqnum", ' ', length=4),
-                    StrFixedLenField("packet_payload", ' '*100, length=100)]
-
+from scapy.all import bind_layers
+from scapy.all import Ether
+from scapy.all import sendp, sniff, srp1
+from coding_packet import CodingPacket
 bind_layers(Ether, CodingPacket, type=0x1234)
 
 def main():

@@ -1,5 +1,5 @@
-table_add table_code ingress_index_1 1 =>
-table_add table_code ingress_index_2 2 =>
+table_add table_ingress_code ingress_index_1 1 =>
+table_add table_ingress_code ingress_index_2 2 =>
 
 table_add table_ingress_clone ingress_cloned_packets_loop 1 =>
 table_add table_ingress_clone ingress_cloned_packets_loop 2 =>

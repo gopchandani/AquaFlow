@@ -175,7 +175,7 @@ control MyIngress(inout headers hdr,
         send_from_ingress(4, CODING_X, meta.extra_metadata.coded_packets_seqnum);
     }
 
-    table table_code {
+    table table_ingress_code {
         key = {    
                meta.extra_metadata.operand_index: exact;
               }
@@ -249,14 +249,14 @@ control MyIngress(inout headers hdr,
                     reg_coded_packets_seqnum.write(0, curr_coded_packets_seqnum + 1);
                 }
 
-                // If it is a cloned packet, do the coding and then send them out via table_code
+                // If it is a cloned packet, do the coding and then send them out via table_ingress_code
                 if (meta.extra_metadata.clone_number > 0) 
                 {
                     switch(table_ingress_clone.apply().action_run) 
                     {
                         ingress_cloned_packets_loop: 
                         {
-                            table_code.apply();
+                            table_ingress_code.apply();
                         }
                     }
                 }
@@ -381,6 +381,7 @@ control MyEgress(inout headers hdr,
                     // If this is second packet and first was XOR then decode and send two
                     if (num_received_per_seq_num == 1 && x_index == rcv_index) {
                         //TODO
+                        //Clone this packet and fill up the clone with x_index
                     }
                     else
                     // If this is second packet and first was not a XOR packet, then do nothing

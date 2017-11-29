@@ -49,7 +49,7 @@ const bit<8> DONT_CLONE = 0;
 const bit<8> DO_CLONE = 1;
 const bit<8> POST_CLONE = 2;
 
-const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 2;
+const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 128;
 const bit<32> INIT_CODED_PACKETS_SEQNUM = 1;
 
 typedef bit<800> payload_t;
@@ -399,10 +399,6 @@ control MyEgress(inout headers hdr,
                         // Pickup the uncoded packet and xor it with this one to get the other payload
                         payload_t uncoded_payload;
 
-                        if (x_index == rcv_index) 
-                        {
-                        }
-                        else
                         if (a_index == rcv_index) 
                         {
                             reg_payload_decoding_buffer_a.read(uncoded_payload, rcv_index);

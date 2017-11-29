@@ -84,7 +84,7 @@ struct headers {
 struct intrinsic_metadata_t {
     bit<16> recirculate_flag;
 }
-struct extra_metadata_t { 
+struct coding_metadata_t { 
     bit<16> clone_number;
     bit<16> operand_index;
     bit<8>  clone_status;
@@ -93,7 +93,7 @@ struct extra_metadata_t {
 
 struct metadata {
     intrinsic_metadata_t intrinsic_metadata;
-    extra_metadata_t extra_metadata;
+    coding_metadata_t coding_metadata;
 }
 
 
@@ -154,7 +154,7 @@ control MyIngress(inout headers hdr,
         hdr.p4calc.coded_packets_seqnum = packet_coded_packets_seqnum;
         hdr.p4calc.packet_contents = packet_contents;
         standard_metadata.egress_spec = egress_port;
-        meta.extra_metadata.clone_status = POST_CLONE;
+        meta.coding_metadata.clone_status = POST_CLONE;
     }
 
     action mac_forward_from_ingress(bit<9> egress_port) {
@@ -163,7 +163,7 @@ control MyIngress(inout headers hdr,
 
     action ingress_index_1 () {
         reg_operands.write(1, hdr.p4calc.packet_payload);
-        send_from_ingress(3, CODING_B, meta.extra_metadata.coded_packets_seqnum);
+        send_from_ingress(3, CODING_B, meta.coding_metadata.coded_packets_seqnum);
     }
 
     action ingress_index_2 () {
@@ -172,12 +172,12 @@ control MyIngress(inout headers hdr,
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
         hdr.p4calc.packet_payload = operand1 ^ operand2;
-        send_from_ingress(4, CODING_X, meta.extra_metadata.coded_packets_seqnum);
+        send_from_ingress(4, CODING_X, meta.coding_metadata.coded_packets_seqnum);
     }
 
     table table_ingress_code {
         key = {    
-               meta.extra_metadata.operand_index: exact;
+               meta.coding_metadata.operand_index: exact;
               }
 
         actions = {_nop; ingress_index_1; ingress_index_2;}
@@ -187,12 +187,12 @@ control MyIngress(inout headers hdr,
 
     action ingress_cloned_packets_loop () { 
         // This causes the packet to be not cloned at egress 
-        meta.extra_metadata.clone_status = DONT_CLONE;
+        meta.coding_metadata.clone_status = DONT_CLONE;
     }
 
     table table_ingress_clone {
         key = {    
-               meta.extra_metadata.clone_number: exact;
+               meta.coding_metadata.clone_number: exact;
               }
 
         actions = {_nop; ingress_cloned_packets_loop; send_from_ingress;}
@@ -228,7 +228,7 @@ control MyIngress(inout headers hdr,
                 }
 
                 // If it is first of two packets AND not a cloned packet, send it out
-                if (operand_index == 0 && meta.extra_metadata.clone_number == 0)
+                if (operand_index == 0 && meta.coding_metadata.clone_number == 0)
                 {
                     reg_operands.write(0, hdr.p4calc.packet_payload);
                     send_from_ingress(2, CODING_A, curr_coded_packets_seqnum);
@@ -237,20 +237,20 @@ control MyIngress(inout headers hdr,
 
                 // If it is second of two packets AND not a cloned packet, don't send it out
                 // but keep track of it 
-                else if (operand_index == 1 && meta.extra_metadata.clone_number == 0) 
+                else if (operand_index == 1 && meta.coding_metadata.clone_number == 0) 
                 {
-                    meta.extra_metadata.clone_status = DO_CLONE;
+                    meta.coding_metadata.clone_status = DO_CLONE;
                     reg_operand_index.write(0, 0);
  
                     // Put the sequence number in the packet metadata so it is maintained
-                    meta.extra_metadata.coded_packets_seqnum = curr_coded_packets_seqnum;
+                    meta.coding_metadata.coded_packets_seqnum = curr_coded_packets_seqnum;
 
                     // Increase the coded sequence number, this happens every two packets
                     reg_coded_packets_seqnum.write(0, curr_coded_packets_seqnum + 1);
                 }
 
                 // If it is a cloned packet, do the coding and then send them out via table_ingress_code
-                if (meta.extra_metadata.clone_number > 0) 
+                if (meta.coding_metadata.clone_number > 0) 
                 {
                     switch(table_ingress_clone.apply().action_run) 
                     {
@@ -303,11 +303,11 @@ control MyEgress(inout headers hdr,
     }
 
     action egress_cloning_step() {
-        meta.extra_metadata.clone_number = meta.extra_metadata.clone_number + 1;
-        meta.extra_metadata.operand_index = meta.extra_metadata.clone_number;
+        meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
+        meta.coding_metadata.operand_index = meta.coding_metadata.clone_number;
         standard_metadata.clone_spec = 250;
-        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.extra_metadata, standard_metadata});
-        recirculate({meta.intrinsic_metadata, meta.extra_metadata, standard_metadata});
+        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
+        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
     }
     action egress_cloning_stop() {
         mark_to_drop();
@@ -318,8 +318,8 @@ control MyEgress(inout headers hdr,
 
     table table_egress_clone {
         key = {    
-               meta.extra_metadata.clone_status: exact;
-               meta.extra_metadata.clone_number: exact;
+               meta.coding_metadata.clone_status: exact;
+               meta.coding_metadata.clone_number: exact;
               }
         actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
         size = 10;

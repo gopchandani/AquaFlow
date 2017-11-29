@@ -395,7 +395,7 @@ control MyEgress(inout headers hdr,
                         } 
                         else
                         // If this is second packet and first was a XOR then decode and send two
-                        if (num_received_per_seq_num == 1 && x_index == rcv_index) {
+                        if (num_received_per_seq_num == 1 && x_index >= rcv_index) {
                             //Clone this packet and send it along
                             meta.decoding_metadata.is_clone = 1;
                             standard_metadata.clone_spec = 450;
@@ -403,7 +403,7 @@ control MyEgress(inout headers hdr,
                         }
                         else
                         // If this is second packet and first was not a XOR packet, then do nothing
-                        if (num_received_per_seq_num == 1 && x_index != rcv_index) {
+                        if (num_received_per_seq_num == 1 && x_index < rcv_index) {
                         }
                         else
                         // If this came third, then drop, because the second one did the job presumably
@@ -418,7 +418,7 @@ control MyEgress(inout headers hdr,
                             // Pickup the uncoded packet and xor it with this one to get the other payload
                             payload_t uncoded_payload;
 
-                            if (a_index == rcv_index) 
+                            if (a_index >= rcv_index) 
                             {
                                 reg_payload_decoding_buffer_a.read(uncoded_payload, rcv_index);
                                 payload_t a_payload;
@@ -426,7 +426,7 @@ control MyEgress(inout headers hdr,
                                 hdr.p4calc.packet_payload = a_payload;
                             }
                             else
-                            if (b_index == rcv_index) 
+                            if (b_index >= rcv_index) 
                             {
                                 reg_payload_decoding_buffer_b.read(uncoded_payload, rcv_index);
                                 payload_t b_payload;

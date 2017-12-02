@@ -406,7 +406,7 @@ control MyEgress(inout headers hdr,
                             clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
                         }
                         else
-                        // If this is second packet and first was not a XOR packet, then do nothing
+                        // If this is second packet and first was not a XOR packet, then send it along
                         if (num_received_per_seq_num == 1 && xor_received_per_seq_num == 0) {
                         }
                         else

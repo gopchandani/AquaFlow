@@ -296,6 +296,7 @@ control MyEgress(inout headers hdr,
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_received_per_seq_num;
+    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_xor_received_per_seq_num;
 
     bit<32> rcv_seqnum;
     bit<32> this_pkt_index;
@@ -303,6 +304,7 @@ control MyEgress(inout headers hdr,
     bit<32> b_index;
     bit<32> x_index;
     bit<32> num_received_per_seq_num;
+    bit<32> xor_received_per_seq_num;
 
     action _nop () { 
     }
@@ -346,6 +348,10 @@ control MyEgress(inout headers hdr,
                 rcv_seqnum = hdr.p4calc.coded_packets_seqnum;
                 this_pkt_index = rcv_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
+                if (this_pkt_index == 0) {
+                    this_pkt_index = hdr.p4calc.coded_packets_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+                }
+
 
                 if (meta.decoding_metadata.is_clone == 1)  {
                     //fill up the clone with other payload by using the XOR coded payload in buffer
@@ -357,16 +363,14 @@ control MyEgress(inout headers hdr,
                 else
                 if (meta.decoding_metadata.is_clone == 0) 
                 {
-                    // If this this_pkt_index has been rolled over, need to initialize instead of increment
+                    // Get the status of number of received packets for this index
                     reg_num_received_per_seq_num.read(num_received_per_seq_num, this_pkt_index);
-                    if (num_received_per_seq_num == 3) {
-                        reg_num_received_per_seq_num.write(this_pkt_index, 1);
-                    }
-                    // Otherwise, read and increase the count for coded packets seqnum
-                    else
-                    {
-                        reg_num_received_per_seq_num.write(this_pkt_index, num_received_per_seq_num + 1);
-                    }
+
+                    // Get the status of number of received packets for this index
+                    reg_xor_received_per_seq_num.read(xor_received_per_seq_num, this_pkt_index);
+    
+                    // Update here, but it may get over-written by the two cases below
+                    reg_num_received_per_seq_num.write(this_pkt_index, num_received_per_seq_num + 1);
 
                     // Copy the packet payload in appropriate buffer and update the index
                     if (hdr.p4calc.packet_contents == CODING_A) {
@@ -395,7 +399,7 @@ control MyEgress(inout headers hdr,
                         } 
                         else
                         // If this is second packet and first was a XOR then decode and send two
-                        if (num_received_per_seq_num == 1 && x_index >= this_pkt_index) {
+                        if (num_received_per_seq_num == 1 && xor_received_per_seq_num == 1) {
                             //Clone this packet and send it along
                             meta.decoding_metadata.is_clone = 1;
                             standard_metadata.clone_spec = 450;
@@ -403,16 +407,22 @@ control MyEgress(inout headers hdr,
                         }
                         else
                         // If this is second packet and first was not a XOR packet, then do nothing
-                        if (num_received_per_seq_num == 1 && x_index < this_pkt_index) {
+                        if (num_received_per_seq_num == 1 && xor_received_per_seq_num == 0) {
                         }
                         else
                         // If this came third, then drop, because the second one did the job presumably
                         if (num_received_per_seq_num == 2) {
+                            //Also, set the received packet counter for this index to zero
+                            reg_num_received_per_seq_num.write(this_pkt_index, 0);
+                            reg_xor_received_per_seq_num.write(this_pkt_index, 0);
                             mark_to_drop();
                         }
                     }
                     // If the packet is X
                     else if (hdr.p4calc.packet_contents == CODING_X) {
+
+                        reg_xor_received_per_seq_num.write(this_pkt_index, 1);
+
                         // If one packet was previously received then decode using XOR
                         if (num_received_per_seq_num == 1) {
                             // Pickup the uncoded packet and xor it with this one to get the other payload
@@ -441,8 +451,15 @@ control MyEgress(inout headers hdr,
                         } 
                         else 
                         // If XOR was the first packet that arrived, then drop and wait for one of the others
+                        if (num_received_per_seq_num == 0) {
+                            mark_to_drop();
+                        }
+                        else 
                         // If this came third, then drop, because two already went.
-                        if (num_received_per_seq_num == 0 || num_received_per_seq_num == 2) {
+                        if (num_received_per_seq_num == 2) {
+                            //Also, set the received packet counter for this index to zero
+                            reg_num_received_per_seq_num.write(this_pkt_index, 0);
+                            reg_xor_received_per_seq_num.write(this_pkt_index, 0);
                             mark_to_drop();
                         }
                     } 

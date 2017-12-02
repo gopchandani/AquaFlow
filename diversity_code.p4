@@ -298,7 +298,7 @@ control MyEgress(inout headers hdr,
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_received_per_seq_num;
 
     bit<32> rcv_seqnum;
-    bit<32> rcv_index;
+    bit<32> tail_index;
     bit<32> a_index;
     bit<32> b_index;
     bit<32> x_index;
@@ -344,12 +344,12 @@ control MyEgress(inout headers hdr,
             else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
 
                 rcv_seqnum = hdr.p4calc.coded_packets_seqnum;
-                rcv_index = rcv_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+                tail_index = rcv_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
                 if (meta.decoding_metadata.is_clone == 1)  {
                     //fill up the clone with other payload by using the XOR coded payload in buffer
                     payload_t coded_payload;
-                    reg_payload_decoding_buffer_x.read(coded_payload, rcv_index);
+                    reg_payload_decoding_buffer_x.read(coded_payload, tail_index);
                     hdr.p4calc.packet_payload = hdr.p4calc.packet_payload ^ coded_payload;
                     hdr.p4calc.packet_contents = CODING_X;
                 }
@@ -357,31 +357,31 @@ control MyEgress(inout headers hdr,
                 if (meta.decoding_metadata.is_clone == 0) 
                 {
 
-                    // If this rcv_index has been rolled over, need to initialize instead of increment
-                    reg_num_received_per_seq_num.read(num_received_per_seq_num, rcv_index);
+                    // If this tail_index has been rolled over, need to initialize instead of increment
+                    reg_num_received_per_seq_num.read(num_received_per_seq_num, tail_index);
                     if (num_received_per_seq_num == 3) {
-                        reg_num_received_per_seq_num.write(rcv_index, 1);
+                        reg_num_received_per_seq_num.write(tail_index, 1);
                     }
                     // Otherwise, read and increase the count for coded packets seqnum
                     else
                     {
-                        reg_num_received_per_seq_num.write(rcv_index, num_received_per_seq_num + 1);
+                        reg_num_received_per_seq_num.write(tail_index, num_received_per_seq_num + 1);
                     }
 
                     // Copy the packet payload in appropriate buffer and update the index
                     if (hdr.p4calc.packet_contents == CODING_A) {
-                        reg_payload_decoding_buffer_a.write(rcv_index, hdr.p4calc.packet_payload);
-                        reg_a_index.write(0, rcv_index);
+                        reg_payload_decoding_buffer_a.write(tail_index, hdr.p4calc.packet_payload);
+                        reg_a_index.write(0, tail_index);
                     }
                     else
                     if (hdr.p4calc.packet_contents == CODING_B) {
-                        reg_payload_decoding_buffer_b.write(rcv_index, hdr.p4calc.packet_payload);
-                        reg_b_index.write(0, rcv_index);
+                        reg_payload_decoding_buffer_b.write(tail_index, hdr.p4calc.packet_payload);
+                        reg_b_index.write(0, tail_index);
                     }
                     else 
                     if (hdr.p4calc.packet_contents == CODING_X) {
-                        reg_payload_decoding_buffer_x.write(rcv_index, hdr.p4calc.packet_payload);
-                        reg_x_index.write(0, rcv_index);
+                        reg_payload_decoding_buffer_x.write(tail_index, hdr.p4calc.packet_payload);
+                        reg_x_index.write(0, tail_index);
                     }
 
                     reg_a_index.read(a_index, 0);
@@ -395,7 +395,7 @@ control MyEgress(inout headers hdr,
                         } 
                         else
                         // If this is second packet and first was a XOR then decode and send two
-                        if (num_received_per_seq_num == 1 && x_index >= rcv_index) {
+                        if (num_received_per_seq_num == 1 && x_index >= tail_index) {
                             //Clone this packet and send it along
                             meta.decoding_metadata.is_clone = 1;
                             standard_metadata.clone_spec = 450;
@@ -403,7 +403,7 @@ control MyEgress(inout headers hdr,
                         }
                         else
                         // If this is second packet and first was not a XOR packet, then do nothing
-                        if (num_received_per_seq_num == 1 && x_index < rcv_index) {
+                        if (num_received_per_seq_num == 1 && x_index < tail_index) {
                         }
                         else
                         // If this came third, then drop, because the second one did the job presumably
@@ -418,17 +418,17 @@ control MyEgress(inout headers hdr,
                             // Pickup the uncoded packet and xor it with this one to get the other payload
                             payload_t uncoded_payload;
 
-                            if (a_index >= rcv_index) 
+                            if (a_index >= tail_index) 
                             {
-                                reg_payload_decoding_buffer_a.read(uncoded_payload, rcv_index);
+                                reg_payload_decoding_buffer_a.read(uncoded_payload, tail_index);
                                 payload_t a_payload;
                                 a_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
                                 hdr.p4calc.packet_payload = a_payload;
                             }
                             else
-                            if (b_index >= rcv_index) 
+                            if (b_index >= tail_index) 
                             {
-                                reg_payload_decoding_buffer_b.read(uncoded_payload, rcv_index);
+                                reg_payload_decoding_buffer_b.read(uncoded_payload, tail_index);
                                 payload_t b_payload;
                                 b_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
                                 hdr.p4calc.packet_payload = b_payload;

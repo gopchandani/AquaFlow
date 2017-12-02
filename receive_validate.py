@@ -46,6 +46,8 @@ def print_status(pkt):
 def main():
 
     iface = sys.argv[1]
+    num_pkts = int(sys.argv[2])
+
     sniff(iface=iface, filter="ether proto 0x1234", prn=print_status)
 
 if __name__ == '__main__':

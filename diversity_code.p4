@@ -295,8 +295,6 @@ control MyEgress(inout headers hdr,
     register<bit<32>>(1) reg_a_index;
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
-    register<bit<32>>(1) reg_last_decoded_index;
-    register<bit<32>>(1) reg_last_coded_index;
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_received_per_seq_num;
 
     bit<32> rcv_seqnum;
@@ -304,8 +302,6 @@ control MyEgress(inout headers hdr,
     bit<32> a_index;
     bit<32> b_index;
     bit<32> x_index;
-    bit<32> last_decoded_index;
-    bit<32> last_coded_index;
     bit<32> num_received_per_seq_num;
 
     action _nop () { 

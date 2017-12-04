@@ -349,11 +349,19 @@ control MyEgress(inout headers hdr,
                 this_pkt_index = rcv_seqnum % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
                 // Get the status of number of received packets for this index
+                reg_xor_received_per_seq_num.read(xor_received_per_seq_num, this_pkt_index);
+
+                 // Get the number of pkts sent out for this seq num
                 reg_num_sent_per_seq_num.read(num_sent_per_seq_num, this_pkt_index);
 
-                // Get the status of number of received packets for this index
-                reg_xor_received_per_seq_num.read(xor_received_per_seq_num, this_pkt_index);
- 
+                // If two were sent, drop this packet and reset counters to indicate that nothing else needs to be done at this index
+                if (num_sent_per_seq_num == 2) {
+                    //Also, set the received packet counter for this index to zero
+                    reg_num_sent_per_seq_num.write(this_pkt_index, 0);
+                    reg_xor_received_per_seq_num.write(this_pkt_index, 0);
+                    mark_to_drop();
+                }
+
                 if (meta.decoding_metadata.is_clone == 1)  {
                     //fill up the clone with other payload by using the XOR coded payload in buffer
                     payload_t coded_payload;
@@ -403,21 +411,13 @@ control MyEgress(inout headers hdr,
 
                                 // Update here
                                 reg_num_sent_per_seq_num.write(this_pkt_index, num_sent_per_seq_num + 1);
-                            }
+                                }
                             else
                             if (xor_received_per_seq_num == 0)
                             {
                                 // Update here
                                 reg_num_sent_per_seq_num.write(this_pkt_index, num_sent_per_seq_num + 1);
                             }
-                        }
-                        else
-                        // If this came third, then drop, because the second one did the job presumably
-                        if (num_sent_per_seq_num == 2) {
-                            //Also, set the received packet counter for this index to zero
-                            reg_num_sent_per_seq_num.write(this_pkt_index, 0);
-                            reg_xor_received_per_seq_num.write(this_pkt_index, 0);
-                            mark_to_drop();
                         }
                     }
                     // If the packet is X
@@ -451,14 +451,6 @@ control MyEgress(inout headers hdr,
                         else 
                         // If XOR was the first packet that arrived, then drop and wait for one of the others
                         if (num_sent_per_seq_num == 0) {
-                            mark_to_drop();
-                        }
-                        else 
-                        // If this came third, then drop, because two already went.
-                        if (num_sent_per_seq_num == 2) {
-                            //Also, set the received packet counter for this index to zero
-                            reg_num_sent_per_seq_num.write(this_pkt_index, 0);
-                            reg_xor_received_per_seq_num.write(this_pkt_index, 0);
                             mark_to_drop();
                         }
                     } 

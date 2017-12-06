@@ -298,7 +298,6 @@ control MyEgress(inout headers hdr,
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_sent_per_index;
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_recv_per_index;
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_xor_received_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_aob_received_per_index;
     register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_rcv_seq_num_per_index;
 
     bit<32> rcv_seq_num_per_index;
@@ -309,7 +308,6 @@ control MyEgress(inout headers hdr,
     bit<32> num_sent_per_index;
     bit<32> num_recv_per_index;
     bit<32> xor_received_per_index;
-    bit<32> aob_received_per_index;
 
     action _nop () { 
     }
@@ -360,7 +358,6 @@ control MyEgress(inout headers hdr,
 
                 // Get the status of received packets for this index
                 reg_xor_received_per_index.read(xor_received_per_index, this_pkt_index);
-                reg_aob_received_per_index.read(aob_received_per_index, this_pkt_index);
 
                 //Get the current occupant seq_num of this index
                 reg_rcv_seq_num_per_index.read(rcv_seq_num_per_index, this_pkt_index);
@@ -388,12 +385,10 @@ control MyEgress(inout headers hdr,
                     if (hdr.p4calc.coded_packets_seq_num != rcv_seq_num_per_index) 
                     {
                         reg_xor_received_per_index.write(this_pkt_index, 0);
-                        reg_aob_received_per_index.write(this_pkt_index, 0);
                         reg_num_sent_per_index.write(this_pkt_index, 0);
                         reg_num_recv_per_index.write(this_pkt_index, 0);
                         
                         xor_received_per_index = 0;
-                        aob_received_per_index = 0;
                         num_sent_per_index = 0;
                         num_recv_per_index = 0;
     
@@ -429,7 +424,6 @@ control MyEgress(inout headers hdr,
                         // If the packet is A or B
                         if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) {
 
-                            reg_aob_received_per_index.write(this_pkt_index, 1);
 
                             // If two packets have not been sent yet
                             if (num_sent_per_index == 0 || num_sent_per_index == 1) {

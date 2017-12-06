@@ -422,31 +422,28 @@ control MyEgress(inout headers hdr,
                         reg_x_index.read(x_index, 0);
 
                         // If the packet is A or B
-                        if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) {
+                        if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) 
+                        {
+                            // If XOR was already received, then clone/deocde it and send, otherwise simply send it
+                            if (xor_received_per_index == 1)
+                            {
+                                //Clone this packet and send it along
+                                meta.decoding_metadata.is_clone = 1;
+                                standard_metadata.clone_spec = 450;
+                                clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
 
-
-                            // If two packets have not been sent yet
-                            if (num_sent_per_index == 0 || num_sent_per_index == 1) {
-                                // If XOR was already received, then clone/deocde it and send, otherwise simply send it
-                                if (xor_received_per_index == 1)
-                                {
-                                    //Clone this packet and send it along
-                                    meta.decoding_metadata.is_clone = 1;
-                                    standard_metadata.clone_spec = 450;
-                                    clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
-
-                                    // Update here
-                                    reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                    }
-                                else
-                                if (xor_received_per_index == 0)
-                                {
-                                    // Update here
-                                    reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-     
+                                // Update here
+                                reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
                                 }
+                            else
+                            if (xor_received_per_index == 0)
+                            {
+                                // Update here
+                                reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+ 
                             }
                         }
+
                         // If the packet is X
                         else if (hdr.p4calc.packet_contents == CODING_X) {
 

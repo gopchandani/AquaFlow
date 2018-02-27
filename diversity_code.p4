@@ -424,7 +424,7 @@ control MyEgress(inout headers hdr,
                         // If the packet is A or B
                         if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) 
                         {
-                            // If XOR was already received, then clone/deocde it and send, otherwise simply send it
+                            // If XOR was already received, then clone/deocde and send this
                             if (xor_received_per_index == 1)
                             {
                                 //Clone this packet and send it along

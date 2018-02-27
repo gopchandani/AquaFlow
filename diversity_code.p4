@@ -71,7 +71,7 @@ typedef bit<32> switchID_t;
 typedef bit<32> qdepth_t;
 
 header stats_hdr_t {
-    bit<16> count;
+    bit<8> count;
 }
 
 header switch_stats_t {
@@ -99,7 +99,7 @@ struct headers {
  */
 
 struct parser_metadata_t {
-    bit<16>  remaining;
+    bit<8>  remaining;
 }
 
 struct intrinsic_metadata_t {
@@ -203,12 +203,6 @@ control MyIngress(inout headers hdr,
 
     action mac_forward_from_ingress(bit<9> egress_port, switchID_t swid) {
         standard_metadata.egress_spec = egress_port;
-
-        hdr.stats.count = hdr.stats.count + 1;
-        hdr.switch_stats.push_front(1);
-        hdr.switch_stats[0].swid = swid;
-        hdr.switch_stats[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
-
     }
 
     action ingress_index_1 () {

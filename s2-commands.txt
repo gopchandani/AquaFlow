@@ -1,1 +1,3 @@
+table_set_default switch_stats add_switch_stats 2
+
 table_add table_mac_fwd mac_forward_from_ingress 00:00:00:00:05:02 => 2

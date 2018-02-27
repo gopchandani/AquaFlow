@@ -69,6 +69,7 @@ header coding_hdr_t {
 
 typedef bit<32> switchID_t;
 typedef bit<32> qdepth_t;
+typedef bit<48> ingress_global_timestamp_t;
 
 header stats_hdr_t {
     bit<8> num_switch_stats;
@@ -76,7 +77,7 @@ header stats_hdr_t {
 
 header switch_stats_t {
     switchID_t swid;
-    qdepth_t qdepth;
+    ingress_global_timestamp_t igt;
 }
 
 /*
@@ -351,6 +352,21 @@ control MyEgress(inout headers hdr,
     action _nop () { 
     }
 
+    action add_switch_stats(switchID_t swid) { 
+        hdr.stats.num_switch_stats = hdr.stats.num_switch_stats + 1;
+        hdr.switch_stats.push_front(1);
+        hdr.switch_stats[0].swid = swid;
+        hdr.switch_stats[0].igt = (ingress_global_timestamp_t)standard_metadata.ingress_global_timestamp;
+    }
+
+    table switch_stats {
+        actions = { 
+        add_switch_stats; 
+        NoAction; 
+        }
+        default_action = NoAction();      
+    }
+
     action egress_cloning_step() {
         meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
         meta.coding_metadata.operand_index = meta.coding_metadata.clone_number;
@@ -362,7 +378,10 @@ control MyEgress(inout headers hdr,
         mark_to_drop();
     }
     action egress_coded_packets_processing() {
+        //Signal the next switch to simply forward this packet
         hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+
+        add_switch_stats(1);
     }
 
     table table_egress_clone {
@@ -374,6 +393,7 @@ control MyEgress(inout headers hdr,
         size = 10;
         default_action = _nop;
     }
+
     apply { 
         if (hdr.coding.isValid()) {
             // Logic for coding
@@ -382,8 +402,12 @@ control MyEgress(inout headers hdr,
             }
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
+                //Signal the next switch to decode this packet
                 hdr.coding.packet_todo = CODING_PACKET_TO_DECODE;
+
+                switch_stats.apply();
             }
+
             // Logic for decoding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
 
@@ -528,7 +552,10 @@ control MyEgress(inout headers hdr,
                     } 
 
                 }
+
+                switch_stats.apply();
             }
+    
         }
         else {
             mark_to_drop();

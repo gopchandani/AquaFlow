@@ -1,6 +1,7 @@
 from scapy.all import *
 
 from coding_hdr import CodingHdr
+
 bind_layers(Ether, CodingHdr, type=0x1234)
 total= 0
 a = 0
@@ -18,6 +19,14 @@ def print_status(pkt):
     global x_with_a, x_with_b, x_with_x
 
     total += 1
+
+    print pkt[CodingHdr].num_switch_stats
+    print len(pkt[CodingHdr].switch_stats)
+    print type(pkt[CodingHdr].switch_stats)
+
+    for i in range(pkt[CodingHdr].num_switch_stats):
+        print "Switch ID:,", i, "is:", pkt[CodingHdr].switch_stats[i].swid
+        print "Timestamp:,", i, "is:", pkt[CodingHdr].switch_stats[i].igt
     
     if pkt[CodingHdr].packet_contents == 'A':
         a += 1

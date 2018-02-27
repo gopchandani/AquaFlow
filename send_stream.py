@@ -21,10 +21,10 @@ def main():
     iface = 'h1-eth0'
     num_pkts = int(sys.argv[1])
 
-    pktA = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingHdr(count=0, packet_contents="A", packet_payload="A" * 100)
+    pktA = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingHdr(num_switch_stats=0, packet_contents="A", packet_payload="A" * 100)
     pktA = pktA/' '
 
-    pktB = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingHdr(count=0, packet_contents="B", packet_payload="B" * 100)
+    pktB = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingHdr(num_switch_stats=0, packet_contents="B", packet_payload="B" * 100)
     pktB = pktB/' '
 
     for i in range(num_pkts/2):

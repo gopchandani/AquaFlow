@@ -201,7 +201,7 @@ control MyIngress(inout headers hdr,
         meta.coding_metadata.clone_status = POST_CLONE;
     }
 
-    action mac_forward_from_ingress(bit<9> egress_port, switchID_t swid) {
+    action mac_forward_from_ingress(bit<9> egress_port) {
         standard_metadata.egress_spec = egress_port;
     }
 

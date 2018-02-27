@@ -33,6 +33,8 @@ header ethernet_t {
     bit<16> etherType;
 }
 
+#define MAX_HOPS 9
+
 const bit<16> CODING_ETYPE = 0x1234;
 const bit<8>  CODING_P     = 0x50;   // 'P'
 const bit<8>  CODING_4     = 0x34;   // '4'
@@ -64,14 +66,29 @@ header coding_hdr_t {
     payload_t packet_payload;
 }
 
+
+typedef bit<32> switchID_t;
+typedef bit<32> qdepth_t;
+
+header stats_hdr_t {
+    bit<16> count;
+}
+
+header switch_stats_t {
+    switchID_t swid;
+    qdepth_t qdepth;
+}
+
 /*
  * All headers, used in the program needs to be assembed into a single struct.
  * We only need to declare the type, but there is no need to instantiate it,
  * because it is done "by the architecture", i.e. outside of P4 functions
  */
 struct headers {
-    ethernet_t   ethernet;
-    coding_hdr_t     p4calc;
+    ethernet_t                  ethernet;
+    stats_hdr_t                 stats;
+    switch_stats_t[MAX_HOPS]    switch_stats;
+    coding_hdr_t                coding;
 }
 
 /*
@@ -81,9 +98,14 @@ struct headers {
  * because it is done "by the architecture", i.e. outside of P4 functions
  */
 
+struct parser_metadata_t {
+    bit<16>  remaining;
+}
+
 struct intrinsic_metadata_t {
     bit<16> recirculate_flag;
 }
+
 struct coding_metadata_t { 
     bit<16> clone_number;
     bit<16> operand_index;
@@ -96,9 +118,10 @@ struct decoding_metadata_t {
 }
 
 struct metadata {
-    intrinsic_metadata_t intrinsic_metadata;
-    coding_metadata_t coding_metadata;
-    decoding_metadata_t decoding_metadata;
+    parser_metadata_t       parser_metadata;
+    intrinsic_metadata_t    intrinsic_metadata;
+    coding_metadata_t       coding_metadata;
+    decoding_metadata_t     decoding_metadata;
 }
 
 
@@ -113,22 +136,38 @@ parser MyParser(packet_in packet,
     state start {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            CODING_ETYPE : check_p4calc;
+            CODING_ETYPE : parse_stats;
             default      : accept;
         }
     }
     
-    state check_p4calc {
-        transition select(packet.lookahead<coding_hdr_t>().p,
-        packet.lookahead<coding_hdr_t>().four,
-        packet.lookahead<coding_hdr_t>().ver) {
-            (CODING_P, CODING_4, CODING_VER) : parse_p4calc;
+    state parse_stats {
+        packet.extract(hdr.stats);
+        meta.parser_metadata.remaining = hdr.stats.count;
+        transition select(meta.parser_metadata.remaining) {
+            0 : check_coding;
+            default: parse_switch_stats;
+        }
+    }
+
+    state parse_switch_stats {
+        packet.extract(hdr.switch_stats.next);
+        meta.parser_metadata.remaining = meta.parser_metadata.remaining  - 1;
+        transition select(meta.parser_metadata.remaining) {
+            0 : check_coding;
+            default: parse_switch_stats;
+        }
+    }
+
+    state check_coding {
+        transition select(packet.lookahead<coding_hdr_t>().p, packet.lookahead<coding_hdr_t>().four, packet.lookahead<coding_hdr_t>().ver) {
+            (CODING_P, CODING_4, CODING_VER) : parse_coding;
             default                          : accept;
         }
     }
     
-    state parse_p4calc {
-        packet.extract(hdr.p4calc);
+    state parse_coding {
+        packet.extract(hdr.coding);
         transition accept;
     }
 }
@@ -156,18 +195,24 @@ control MyIngress(inout headers hdr,
     }
 
     action send_from_ingress(bit<9> egress_port, bit<8> packet_contents, bit<32> packet_coded_packets_seq_num) {
-        hdr.p4calc.coded_packets_seq_num = packet_coded_packets_seq_num;
-        hdr.p4calc.packet_contents = packet_contents;
+        hdr.coding.coded_packets_seq_num = packet_coded_packets_seq_num;
+        hdr.coding.packet_contents = packet_contents;
         standard_metadata.egress_spec = egress_port;
         meta.coding_metadata.clone_status = POST_CLONE;
     }
 
-    action mac_forward_from_ingress(bit<9> egress_port) {
+    action mac_forward_from_ingress(bit<9> egress_port, switchID_t swid) {
         standard_metadata.egress_spec = egress_port;
+
+        hdr.stats.count = hdr.stats.count + 1;
+        hdr.switch_stats.push_front(1);
+        hdr.switch_stats[0].swid = swid;
+        hdr.switch_stats[0].qdepth = (qdepth_t)standard_metadata.deq_qdepth;
+
     }
 
     action ingress_index_1 () {
-        reg_operands.write(1, hdr.p4calc.packet_payload);
+        reg_operands.write(1, hdr.coding.packet_payload);
         send_from_ingress(3, CODING_B, meta.coding_metadata.coded_packets_seq_num);
     }
 
@@ -176,7 +221,7 @@ control MyIngress(inout headers hdr,
         payload_t operand2;
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
-        hdr.p4calc.packet_payload = operand1 ^ operand2;
+        hdr.coding.packet_payload = operand1 ^ operand2;
         send_from_ingress(4, CODING_X, meta.coding_metadata.coded_packets_seq_num);
     }
 
@@ -217,11 +262,11 @@ control MyIngress(inout headers hdr,
 
     apply 
     {
-        if (hdr.p4calc.isValid()) {
+        if (hdr.coding.isValid()) {
 
             //Logic for Coding
 
-            if (hdr.p4calc.packet_todo == CODING_PACKET_TO_CODE) {
+            if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
                 bit<32> operand_index;
                 reg_operand_index.read(operand_index, 0);
 
@@ -235,7 +280,7 @@ control MyIngress(inout headers hdr,
                 // If it is first of two packets AND not a cloned packet, send it out
                 if (operand_index == 0 && meta.coding_metadata.clone_number == 0)
                 {
-                    reg_operands.write(0, hdr.p4calc.packet_payload);
+                    reg_operands.write(0, hdr.coding.packet_payload);
                     send_from_ingress(2, CODING_A, curr_coded_packets_seq_num);
                     reg_operand_index.write(0, 1);
                 } 
@@ -267,11 +312,11 @@ control MyIngress(inout headers hdr,
                 }
             }
             //Logic for forwarding
-            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_FORWARD) {
+            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
                 table_mac_fwd.apply();
             }
             //Logic for decoding
-            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
+            else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
                 table_mac_fwd.apply();
             }
         }
@@ -323,7 +368,7 @@ control MyEgress(inout headers hdr,
         mark_to_drop();
     }
     action egress_coded_packets_processing() {
-        hdr.p4calc.packet_todo = CODING_PACKET_TO_FORWARD;
+        hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
     }
 
     table table_egress_clone {
@@ -336,19 +381,19 @@ control MyEgress(inout headers hdr,
         default_action = _nop;
     }
     apply { 
-        if (hdr.p4calc.isValid()) {
+        if (hdr.coding.isValid()) {
             // Logic for coding
-            if (hdr.p4calc.packet_todo == CODING_PACKET_TO_CODE) {
+            if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
                 table_egress_clone.apply();
             }
             // Logic to forward
-            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_FORWARD) {
-                hdr.p4calc.packet_todo = CODING_PACKET_TO_DECODE;
+            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
+                hdr.coding.packet_todo = CODING_PACKET_TO_DECODE;
             }
             // Logic for decoding
-            else if (hdr.p4calc.packet_todo == CODING_PACKET_TO_DECODE) {
+            else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
 
-                this_pkt_index = hdr.p4calc.coded_packets_seq_num % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+                this_pkt_index = hdr.coding.coded_packets_seq_num % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
                 // Get the number of pkts received for this seq num
                 reg_num_recv_per_index.read(num_recv_per_index, this_pkt_index);
@@ -365,15 +410,15 @@ control MyEgress(inout headers hdr,
                 //If it is zero, then set this current pkt as the occupant
                 if (rcv_seq_num_per_index == 0)
                 {
-                    reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.p4calc.coded_packets_seq_num);
+                    reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_seq_num);
                 }
 
                 if (meta.decoding_metadata.is_clone == 1)  {
                     //fill up the clone with other payload by using the XOR coded payload in buffer
                     payload_t coded_payload;
                     reg_payload_decoding_buffer_x.read(coded_payload, this_pkt_index);
-                    hdr.p4calc.packet_payload = hdr.p4calc.packet_payload ^ coded_payload;
-                    hdr.p4calc.packet_contents = CODING_X;
+                    hdr.coding.packet_payload = hdr.coding.packet_payload ^ coded_payload;
+                    hdr.coding.packet_contents = CODING_X;
 
                     // Update here
                     reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
@@ -382,7 +427,7 @@ control MyEgress(inout headers hdr,
                 if (meta.decoding_metadata.is_clone == 0)
                 {
                     // if the sequence number of the packet(s) in the buffer is different than this packet then rollover has occured, reset everything.
-                    if (hdr.p4calc.coded_packets_seq_num != rcv_seq_num_per_index) 
+                    if (hdr.coding.coded_packets_seq_num != rcv_seq_num_per_index) 
                     {
                         reg_xor_received_per_index.write(this_pkt_index, 0);
                         reg_num_sent_per_index.write(this_pkt_index, 0);
@@ -393,7 +438,7 @@ control MyEgress(inout headers hdr,
                         num_recv_per_index = 0;
     
                         // And put the new seq_num in the buffer
-                        reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.p4calc.coded_packets_seq_num);
+                        reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_seq_num);
                     }
 
                     if (num_sent_per_index < 2)
@@ -402,18 +447,18 @@ control MyEgress(inout headers hdr,
                         reg_num_recv_per_index.write(this_pkt_index, num_recv_per_index + 1);
 
                         // Copy the packet payload in appropriate buffer and update the index
-                        if (hdr.p4calc.packet_contents == CODING_A) {
-                            reg_payload_decoding_buffer_a.write(this_pkt_index, hdr.p4calc.packet_payload);
+                        if (hdr.coding.packet_contents == CODING_A) {
+                            reg_payload_decoding_buffer_a.write(this_pkt_index, hdr.coding.packet_payload);
                             reg_a_index.write(0, this_pkt_index);
                         }
                         else
-                        if (hdr.p4calc.packet_contents == CODING_B) {
-                            reg_payload_decoding_buffer_b.write(this_pkt_index, hdr.p4calc.packet_payload);
+                        if (hdr.coding.packet_contents == CODING_B) {
+                            reg_payload_decoding_buffer_b.write(this_pkt_index, hdr.coding.packet_payload);
                             reg_b_index.write(0, this_pkt_index);
                         }
                         else 
-                        if (hdr.p4calc.packet_contents == CODING_X) {
-                            reg_payload_decoding_buffer_x.write(this_pkt_index, hdr.p4calc.packet_payload);
+                        if (hdr.coding.packet_contents == CODING_X) {
+                            reg_payload_decoding_buffer_x.write(this_pkt_index, hdr.coding.packet_payload);
                             reg_x_index.write(0, this_pkt_index);
                         }
 
@@ -422,7 +467,7 @@ control MyEgress(inout headers hdr,
                         reg_x_index.read(x_index, 0);
 
                         // If the packet is A or B
-                        if (hdr.p4calc.packet_contents == CODING_A || hdr.p4calc.packet_contents == CODING_B) 
+                        if (hdr.coding.packet_contents == CODING_A || hdr.coding.packet_contents == CODING_B) 
                         {
                             // If XOR was already received, then clone/deocde and send this
                             if (xor_received_per_index == 1)
@@ -445,7 +490,7 @@ control MyEgress(inout headers hdr,
                         }
 
                         // If the packet is X
-                        else if (hdr.p4calc.packet_contents == CODING_X) {
+                        else if (hdr.coding.packet_contents == CODING_X) {
 
                             reg_xor_received_per_index.write(this_pkt_index, 1);
 
@@ -458,16 +503,16 @@ control MyEgress(inout headers hdr,
                                 {
                                     reg_payload_decoding_buffer_a.read(uncoded_payload, this_pkt_index);
                                     payload_t a_payload;
-                                    a_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
-                                    hdr.p4calc.packet_payload = a_payload;
+                                    a_payload = hdr.coding.packet_payload ^ uncoded_payload;
+                                    hdr.coding.packet_payload = a_payload;
                                 }
                                 else
                                 if (b_index >= this_pkt_index) 
                                 {
                                     reg_payload_decoding_buffer_b.read(uncoded_payload, this_pkt_index);
                                     payload_t b_payload;
-                                    b_payload = hdr.p4calc.packet_payload ^ uncoded_payload;
-                                    hdr.p4calc.packet_payload = b_payload;
+                                    b_payload = hdr.coding.packet_payload ^ uncoded_payload;
+                                    hdr.coding.packet_payload = b_payload;
                                 }
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
@@ -511,7 +556,7 @@ control MyComputeChecksum(inout headers hdr, inout metadata meta) {
 control MyDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
-        packet.emit(hdr.p4calc);
+        packet.emit(hdr.coding);
     }
 }
 

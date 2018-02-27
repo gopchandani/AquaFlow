@@ -71,7 +71,7 @@ typedef bit<32> switchID_t;
 typedef bit<32> qdepth_t;
 
 header stats_hdr_t {
-    bit<8> count;
+    bit<8> num_switch_stats;
 }
 
 header switch_stats_t {
@@ -143,7 +143,7 @@ parser MyParser(packet_in packet,
     
     state parse_stats {
         packet.extract(hdr.stats);
-        meta.parser_metadata.remaining = hdr.stats.count;
+        meta.parser_metadata.remaining = hdr.stats.num_switch_stats;
         transition select(meta.parser_metadata.remaining) {
             0 : check_coding;
             default: parse_switch_stats;

@@ -1,7 +1,7 @@
 from scapy.all import *
 
-from coding_packet import CodingPacket
-bind_layers(Ether, CodingPacket, type=0x1234)
+from coding_hdr import CodingHdr
+bind_layers(Ether, CodingHdr, type=0x1234)
 total= 0
 a = 0
 b = 0
@@ -19,26 +19,26 @@ def print_status(pkt):
 
     total += 1
     
-    if pkt[CodingPacket].packet_contents == 'A':
+    if pkt[CodingHdr].packet_contents == 'A':
         a += 1
-        if a_max_seqnum < int(pkt[CodingPacket].coded_packets_seqnum):
-            a_max_seqnum = int(pkt[CodingPacket].coded_packets_seqnum)
+        if a_max_seqnum < int(pkt[CodingHdr].coded_packets_seqnum):
+            a_max_seqnum = int(pkt[CodingHdr].coded_packets_seqnum)
 
-    elif pkt[CodingPacket].packet_contents == 'B':
+    elif pkt[CodingHdr].packet_contents == 'B':
         b += 1
-        if b_max_seqnum < int(pkt[CodingPacket].coded_packets_seqnum):
-            b_max_seqnum = int(pkt[CodingPacket].coded_packets_seqnum)
+        if b_max_seqnum < int(pkt[CodingHdr].coded_packets_seqnum):
+            b_max_seqnum = int(pkt[CodingHdr].coded_packets_seqnum)
 
-    elif pkt[CodingPacket].packet_contents == 'X':
+    elif pkt[CodingHdr].packet_contents == 'X':
         x += 1
-        if x_max_seqnum < int(pkt[CodingPacket].coded_packets_seqnum):
-            x_max_seqnum = int(pkt[CodingPacket].coded_packets_seqnum)
+        if x_max_seqnum < int(pkt[CodingHdr].coded_packets_seqnum):
+            x_max_seqnum = int(pkt[CodingHdr].coded_packets_seqnum)
 
-        if pkt[CodingPacket].packet_payload[0] == 'A':
+        if pkt[CodingHdr].packet_payload[0] == 'A':
             x_with_a += 1
-        elif pkt[CodingPacket].packet_payload[0] == 'B':
+        elif pkt[CodingHdr].packet_payload[0] == 'B':
             x_with_b += 1
-        elif pkt[CodingPacket].packet_payload[0] == 'X':
+        elif pkt[CodingHdr].packet_payload[0] == 'X':
             x_with_x += 1
 
     return "total: {}, a: {}, b: {}, x: {}, a_max_seqnum: {}, b_max_seqnum: {}, x_max_seqnum: {}, x_with_a: {}, x_with_b: {}, x_with_x: {}".format(total, a, b, x, a_max_seqnum, b_max_seqnum, x_max_seqnum, x_with_a, x_with_b, x_with_x)

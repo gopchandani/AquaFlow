@@ -1,6 +1,7 @@
 #!/usr/bin/sudo python
 
 import numpy as np
+import json
 
 from scapy.all import *
 from coding_hdr import CodingHdrR
@@ -66,39 +67,22 @@ def print_status(pkt):
     return "total: {}, a: {}, b: {}, x: {}, a_max_seqnum: {}, b_max_seqnum: {}, x_max_seqnum: {}, x_with_a: {}, x_with_b: {}, x_with_x: {}".format(total, a, b, x, a_max_seqnum, b_max_seqnum, x_max_seqnum, x_with_a, x_with_b, x_with_x)
 
 
-a_coding_times = []
-a_fwd_times = []
-a_decoding_times = []
+processing_time_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
+                        'B': {'coding': [], 'forwarding': [], 'decoding': []}
+                        }
 
-b_coding_times = []
-b_fwd_times = []
-b_decoding_times = []
 
 def collect_stats(pkt):
 
-    global a_coding_times, a_fwd_times, a_decoding_times
-    global b_coding_times, b_fwd_times, b_decoding_times
+    global processing_time_dict
 
-    coding_time, fwd_time, decoding_time = None, None, None
+    coding_time = int(pkt[CodingHdrR].enqt1.encode('hex'), 16) - int(pkt[CodingHdrR].igt1.encode('hex'), 16)
+    forwarding_time = int(pkt[CodingHdrR].enqt2.encode('hex'), 16) - int(pkt[CodingHdrR].igt2.encode('hex'), 16)
+    decoding_time = int(pkt[CodingHdrR].enqt3.encode('hex'), 16) - int(pkt[CodingHdrR].igt3.encode('hex'), 16)
 
-    if pkt[CodingHdrR].packet_payload[0] == 'A':
-
-        coding_time = int(pkt[CodingHdrR].enqt1.encode('hex'), 16) - int(pkt[CodingHdrR].igt1.encode('hex'), 16)
-        fwd_time = int(pkt[CodingHdrR].enqt2.encode('hex'), 16) - int(pkt[CodingHdrR].igt2.encode('hex'), 16)
-        decoding_time = int(pkt[CodingHdrR].enqt3.encode('hex'), 16) - int(pkt[CodingHdrR].igt3.encode('hex'), 16)
-
-        a_coding_times.append(coding_time)
-        a_fwd_times.append(fwd_time)
-        a_decoding_times.append(decoding_time)
-
-    elif pkt[CodingHdrR].packet_payload[0] == 'B':
-        coding_time = int(pkt[CodingHdrR].enqt1.encode('hex'), 16) - int(pkt[CodingHdrR].igt1.encode('hex'), 16)
-        fwd_time = int(pkt[CodingHdrR].enqt2.encode('hex'), 16) - int(pkt[CodingHdrR].igt2.encode('hex'), 16)
-        decoding_time = int(pkt[CodingHdrR].enqt3.encode('hex'), 16) - int(pkt[CodingHdrR].igt3.encode('hex'), 16)
-
-        b_coding_times.append(coding_time)
-        b_fwd_times.append(fwd_time)
-        b_decoding_times.append(decoding_time)
+    processing_time_dict[pkt[CodingHdrR].packet_payload[0]]['coding'].append(coding_time)
+    processing_time_dict[pkt[CodingHdrR].packet_payload[0]]['forwarding'].append(forwarding_time)
+    processing_time_dict[pkt[CodingHdrR].packet_payload[0]]['decoding'].append(decoding_time)
 
 
 def main():
@@ -107,16 +91,36 @@ def main():
 
     sniff(iface=iface, filter="ether proto 0x1234", prn=collect_stats, count=int(sys.argv[2]))
 
-    print "A"
-    print np.mean(a_coding_times), np.std(a_coding_times)
-    print np.mean(a_fwd_times), np.std(a_fwd_times)
-    print np.mean(a_decoding_times), np.std(a_decoding_times)
+    for payload in processing_time_dict:
+        processing_time_dict[payload]['coding_mean'] = np.mean(processing_time_dict[payload]['coding'])
+        processing_time_dict[payload]['coding_sd'] = np.std(processing_time_dict[payload]['coding'])
+        processing_time_dict[payload]['forwarding_mean'] = np.mean(processing_time_dict[payload]['forwarding'])
+        processing_time_dict[payload]['forwarding_sd'] = np.std(processing_time_dict[payload]['forwarding'])
+        processing_time_dict[payload]['decoding_mean'] = np.mean(processing_time_dict[payload]['decoding'])
+        processing_time_dict[payload]['decoding_sd'] = np.std(processing_time_dict[payload]['decoding'])
 
-    print "B"
-    print np.mean(b_coding_times), np.std(b_coding_times)
-    print np.mean(b_fwd_times), np.std(b_fwd_times)
-    print np.mean(b_decoding_times), np.std(b_decoding_times)
+    print processing_time_dict
+
+    with open('no_failure.json', 'w') as outfile:
+        json.dump(processing_time_dict, outfile)
+
+
+def print_data():
+    for filename in ['no_failure.json', 's1_s2_failure.json', 's1_s3_failure.json', 's1_s3_failure.json',]:
+        with open(filename, 'r') as infile:
+            print filename
+            processing_time_dict = json.load(infile)
+
+            for payload in ['A', 'B']:
+                print payload
+                print "Coding:", processing_time_dict[payload]['coding_mean'], \
+                    processing_time_dict[payload]['coding_sd']
+                print "Forwarding:", processing_time_dict[payload]['forwarding_mean'], \
+                    processing_time_dict[payload]['forwarding_sd']
+                print "Decoding:", processing_time_dict[payload]['decoding_mean'], \
+                    processing_time_dict[payload]['decoding_sd']
 
 
 if __name__ == '__main__':
-    main()
+    #main()
+    print_data()

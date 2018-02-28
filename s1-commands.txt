@@ -14,4 +14,6 @@ table_add table_egress_clone egress_coded_packets_processing 2 0 =>
 table_add table_egress_clone egress_coded_packets_processing 2 1 => 
 table_add table_egress_clone egress_coded_packets_processing 2 2 => 
 
+table_set_default table_egress_clone egress_coded_packets_processing 1
+
 mirroring_add 250 1

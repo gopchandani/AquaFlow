@@ -504,9 +504,6 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
-    action _nop () { 
-    }
-
     action add_switch_stats(switchID_t swid) { 
         hdr.stats.num_switch_stats = hdr.stats.num_switch_stats + 1;
         hdr.switch_stats.push_front(1);
@@ -534,11 +531,11 @@ control MyEgress(inout headers hdr,
     action egress_cloning_stop() {
         mark_to_drop();
     }
-    action egress_coded_packets_processing() {
+    action egress_coded_packets_processing(switchID_t swid) {
         //Signal the next switch to simply forward this packet
         hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
 
-        add_switch_stats(1);
+        add_switch_stats(swid);
     }
 
     table table_egress_clone {
@@ -546,9 +543,8 @@ control MyEgress(inout headers hdr,
                meta.coding_metadata.clone_status: exact;
                meta.coding_metadata.clone_number: exact;
               }
-        actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
+        actions = {egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
         size = 10;
-        default_action = _nop;
     }
 
     apply { 
@@ -564,7 +560,6 @@ control MyEgress(inout headers hdr,
 
             // Logic for decoding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
-
                 switch_stats.apply();
             }
     

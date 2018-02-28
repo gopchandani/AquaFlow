@@ -230,18 +230,18 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
-    action ingress_index_1 () {
+    action ingress_index_1 (bit<9> egress_port) {
         reg_operands.write(1, hdr.coding.packet_payload);
-        send_from_ingress(3, CODING_B, meta.coding_metadata.coded_packets_seq_num);
+        send_from_ingress(egress_port, CODING_B, meta.coding_metadata.coded_packets_seq_num);
     }
 
-    action ingress_index_2 () {
+    action ingress_index_2 (bit<9> egress_port) {
         payload_t operand1;
         payload_t operand2;
         reg_operands.read(operand1, 0);
         reg_operands.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
-        send_from_ingress(4, CODING_X, meta.coding_metadata.coded_packets_seq_num);
+        send_from_ingress(egress_port, CODING_X, meta.coding_metadata.coded_packets_seq_num);
     }
 
     table table_ingress_code {

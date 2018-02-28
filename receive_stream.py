@@ -122,5 +122,5 @@ def print_data():
 
 
 if __name__ == '__main__':
-    #main()
-    print_data()
+    main()
+    #print_data()

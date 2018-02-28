@@ -113,7 +113,7 @@ struct intrinsic_metadata_t {
 
 struct coding_metadata_t { 
     bit<16> clone_number;
-    bit<16> operand_index;
+    bit<16> coding_payload_index;
     bit<8>  clone_status;
     bit<32> coded_packets_seq_num;
 }
@@ -192,8 +192,8 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
-    register<payload_t>(2) reg_payload_coding_buffer;
-    register<bit<32>>(1) reg_operand_index;
+    register<payload_t>(2) reg_coding_payload_buffer;
+    register<bit<32>>(1) reg_coding_payload_index;
     register<bit<32>>(1) reg_coded_packets_seq_num;
 
     register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_a;
@@ -231,22 +231,22 @@ control MyIngress(inout headers hdr,
     }
 
     action ingress_index_1 (bit<9> egress_port) {
-        reg_payload_coding_buffer.write(1, hdr.coding.packet_payload);
+        reg_coding_payload_buffer.write(1, hdr.coding.packet_payload);
         send_from_ingress(egress_port, CODING_B, meta.coding_metadata.coded_packets_seq_num);
     }
 
     action ingress_index_2 (bit<9> egress_port) {
         payload_t operand1;
         payload_t operand2;
-        reg_payload_coding_buffer.read(operand1, 0);
-        reg_payload_coding_buffer.read(operand2, 1);
+        reg_coding_payload_buffer.read(operand1, 0);
+        reg_coding_payload_buffer.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
         send_from_ingress(egress_port, CODING_X, meta.coding_metadata.coded_packets_seq_num);
     }
 
     table table_ingress_code {
         key = {    
-               meta.coding_metadata.operand_index: exact;
+               meta.coding_metadata.coding_payload_index: exact;
               }
 
         actions = {_nop; ingress_index_1; ingress_index_2;}
@@ -286,8 +286,8 @@ control MyIngress(inout headers hdr,
             //Logic for Coding
 
             if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
-                bit<32> operand_index;
-                reg_operand_index.read(operand_index, 0);
+                bit<32> coding_payload_index;
+                reg_coding_payload_index.read(coding_payload_index, 0);
 
                 bit<32> curr_coded_packets_seq_num;
                 reg_coded_packets_seq_num.read(curr_coded_packets_seq_num, 0);
@@ -297,19 +297,19 @@ control MyIngress(inout headers hdr,
                 }
 
                 // If it is first of the two packets AND not a cloned packet, send it out
-                if (operand_index == 0 && meta.coding_metadata.clone_number == 0)
+                if (coding_payload_index == 0 && meta.coding_metadata.clone_number == 0)
                 {
-                    reg_payload_coding_buffer.write(0, hdr.coding.packet_payload);
+                    reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
                     send_from_ingress(2, CODING_A, curr_coded_packets_seq_num);
-                    reg_operand_index.write(0, 1);
+                    reg_coding_payload_index.write(0, 1);
                 } 
 
                 // If it is second of two packets AND not a cloned packet, don't send it out
                 // but keep track of it 
-                else if (operand_index == 1 && meta.coding_metadata.clone_number == 0) 
+                else if (coding_payload_index == 1 && meta.coding_metadata.clone_number == 0) 
                 {
                     meta.coding_metadata.clone_status = DO_CLONE;
-                    reg_operand_index.write(0, 0);
+                    reg_coding_payload_index.write(0, 0);
  
                     // Put the sequence number in the packet metadata so it is maintained
                     meta.coding_metadata.coded_packets_seq_num = curr_coded_packets_seq_num;
@@ -523,7 +523,7 @@ control MyEgress(inout headers hdr,
 
     action egress_cloning_step() {
         meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
-        meta.coding_metadata.operand_index = meta.coding_metadata.clone_number;
+        meta.coding_metadata.coding_payload_index = meta.coding_metadata.clone_number;
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
         recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});

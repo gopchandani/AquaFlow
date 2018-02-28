@@ -192,7 +192,7 @@ control MyIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
-    register<payload_t>(2) reg_operands;
+    register<payload_t>(2) reg_payload_coding_buffer;
     register<bit<32>>(1) reg_operand_index;
     register<bit<32>>(1) reg_coded_packets_seq_num;
 
@@ -231,15 +231,15 @@ control MyIngress(inout headers hdr,
     }
 
     action ingress_index_1 (bit<9> egress_port) {
-        reg_operands.write(1, hdr.coding.packet_payload);
+        reg_payload_coding_buffer.write(1, hdr.coding.packet_payload);
         send_from_ingress(egress_port, CODING_B, meta.coding_metadata.coded_packets_seq_num);
     }
 
     action ingress_index_2 (bit<9> egress_port) {
         payload_t operand1;
         payload_t operand2;
-        reg_operands.read(operand1, 0);
-        reg_operands.read(operand2, 1);
+        reg_payload_coding_buffer.read(operand1, 0);
+        reg_payload_coding_buffer.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
         send_from_ingress(egress_port, CODING_X, meta.coding_metadata.coded_packets_seq_num);
     }
@@ -296,10 +296,10 @@ control MyIngress(inout headers hdr,
                     reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num);
                 }
 
-                // If it is first of two packets AND not a cloned packet, send it out
+                // If it is first of the two packets AND not a cloned packet, send it out
                 if (operand_index == 0 && meta.coding_metadata.clone_number == 0)
                 {
-                    reg_operands.write(0, hdr.coding.packet_payload);
+                    reg_payload_coding_buffer.write(0, hdr.coding.packet_payload);
                     send_from_ingress(2, CODING_A, curr_coded_packets_seq_num);
                     reg_operand_index.write(0, 1);
                 } 

@@ -16,6 +16,7 @@ from scapy.all import sendp, sniff, srp1
 from coding_hdr import CodingHdr
 bind_layers(Ether, CodingHdr, type=0x1234)
 
+
 def main():
 
     iface = 'h1-eth0'
@@ -30,6 +31,7 @@ def main():
     for i in range(num_pkts/2):
         sendp(pktA, iface=iface)
         sendp(pktB, iface=iface)
+
 
 if __name__ == '__main__':
     main()

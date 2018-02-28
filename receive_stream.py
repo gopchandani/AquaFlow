@@ -22,11 +22,20 @@ def print_status(pkt):
 
     print pkt[CodingHdrR].num_switch_stats
     print pkt[CodingHdrR].swid1
-    print int(pkt[CodingHdrR].igt1.encode('hex'), 16)
+    print "igt1:", int(pkt[CodingHdrR].igt1.encode('hex'), 16)
+    print "enqt1:", int(pkt[CodingHdrR].enqt1.encode('hex'), 16)
+    print "enqt1 - igt1:", int(pkt[CodingHdrR].enqt1.encode('hex'), 16) - int(pkt[CodingHdrR].igt1.encode('hex'), 16)
+    print "delt1:", int(pkt[CodingHdrR].delt1.encode('hex'), 16)
     print pkt[CodingHdrR].swid2
-    print int(pkt[CodingHdrR].igt2.encode('hex'), 16)
+    print "igt2:", int(pkt[CodingHdrR].igt2.encode('hex'), 16)
+    print "enqt2:", int(pkt[CodingHdrR].enqt2.encode('hex'), 16)
+    print "enqt2 - igt2:", int(pkt[CodingHdrR].enqt2.encode('hex'), 16) - int(pkt[CodingHdrR].igt2.encode('hex'), 16)
+    print "delt2:", int(pkt[CodingHdrR].delt2.encode('hex'), 16)
     print pkt[CodingHdrR].swid3
-    print int(pkt[CodingHdrR].igt3.encode('hex'), 16)
+    print "igt3:", int(pkt[CodingHdrR].igt3.encode('hex'), 16)
+    print "enqt3:", int(pkt[CodingHdrR].enqt3.encode('hex'), 16)
+    print "enqt3 - igt3:", int(pkt[CodingHdrR].enqt3.encode('hex'), 16) - int(pkt[CodingHdrR].igt3.encode('hex'), 16)
+    print "delt3:", int(pkt[CodingHdrR].delt3.encode('hex'), 16)
     
     if pkt[CodingHdrR].packet_contents == 'A':
         a += 1

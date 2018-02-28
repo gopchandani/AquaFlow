@@ -70,6 +70,8 @@ header coding_hdr_t {
 typedef bit<32> switchID_t;
 typedef bit<32> qdepth_t;
 typedef bit<48> ingress_global_timestamp_t;
+typedef bit<32> enq_timestamp_t;
+typedef bit<32> deq_timedelta_t;
 
 header stats_hdr_t {
     bit<8> num_switch_stats;
@@ -78,6 +80,8 @@ header stats_hdr_t {
 header switch_stats_t {
     switchID_t swid;
     ingress_global_timestamp_t igt;
+    enq_timestamp_t enqt;
+    deq_timedelta_t delt;
 }
 
 /*
@@ -357,6 +361,8 @@ control MyEgress(inout headers hdr,
         hdr.switch_stats.push_front(1);
         hdr.switch_stats[0].swid = swid;
         hdr.switch_stats[0].igt = (ingress_global_timestamp_t)standard_metadata.ingress_global_timestamp;
+        hdr.switch_stats[0].enqt = (enq_timestamp_t)standard_metadata.enq_timestamp;
+        hdr.switch_stats[0].delt = (deq_timedelta_t)standard_metadata.deq_timedelta;
     }
 
     table switch_stats {

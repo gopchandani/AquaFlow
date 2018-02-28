@@ -5,8 +5,6 @@ from switch_stats_hdr import SwitchStatsHdr
 
 class CodingHdr(Packet):
     fields_desc = [ 
-                    #FieldLenField("num_switch_stats", None, fmt="B", length_of="switch_stats", adjust=lambda pkt,l:l*2+4),
-                    #PacketListField("switch_stats", [], SwitchStatsHdr,count_from=lambda pkt:(pkt.num_switch_stats*1)),
                     XByteField("num_switch_stats", 0x01),
                     StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
@@ -19,15 +17,19 @@ class CodingHdr(Packet):
 
 class CodingHdrR(Packet):
     fields_desc = [ 
-                    #FieldLenField("num_switch_stats", None, fmt="B", length_of="switch_stats", adjust=lambda pkt,l:l*2+4),
-                    #PacketListField("switch_stats", [], SwitchStatsHdr,count_from=lambda pkt:(pkt.num_switch_stats*1)),
                     XByteField("num_switch_stats", 0x01),
                     IntField("swid1", 0),
                     XStrFixedLenField("igt1", "      ", length=6),
+                    XStrFixedLenField("enqt1", "      ", length=4),
+                    XStrFixedLenField("delt1", "      ", length=4),
                     IntField("swid2", 0),
                     XStrFixedLenField("igt2", "      ", length=6),
+                    XStrFixedLenField("enqt2", "      ", length=4),
+                    XStrFixedLenField("delt2", "      ", length=4),
                     IntField("swid3", 0),
                     XStrFixedLenField("igt3", "      ", length=6),
+                    XStrFixedLenField("enqt3", "      ", length=4),
+                    XStrFixedLenField("delt3", "      ", length=4),
                     StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),

@@ -246,6 +246,7 @@ control MyIngress(inout headers hdr,
 
     table table_ingress_code {
         key = {    
+               hdr.ethernet.dstAddr: exact;
                meta.coding_metadata.coding_payload_index: exact;
               }
 

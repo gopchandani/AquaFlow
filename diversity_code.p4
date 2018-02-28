@@ -196,6 +196,26 @@ control MyIngress(inout headers hdr,
     register<bit<32>>(1) reg_operand_index;
     register<bit<32>>(1) reg_coded_packets_seq_num;
 
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_a;
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_b;
+    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_x;
+    register<bit<32>>(1) reg_a_index;
+    register<bit<32>>(1) reg_b_index;
+    register<bit<32>>(1) reg_x_index;
+    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_sent_per_index;
+    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_recv_per_index;
+    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_xor_received_per_index;
+    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_rcv_seq_num_per_index;
+
+    bit<32> rcv_seq_num_per_index;
+    bit<32> this_pkt_index;
+    bit<32> a_index;
+    bit<32> b_index;
+    bit<32> x_index;
+    bit<32> num_sent_per_index;
+    bit<32> num_recv_per_index;
+    bit<32> xor_received_per_index;
+
     action _nop () { 
     }
 
@@ -310,112 +330,18 @@ control MyIngress(inout headers hdr,
                     }
                 }
             }
+
             //Logic for forwarding
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
-                table_mac_fwd.apply();
-            }
-            //Logic for decoding
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
-                table_mac_fwd.apply();
-            }
-        }
-        else 
-        {
-            mark_to_drop();
-        }
-    }
-}
-
-/*************************************************************************
- ****************  E G R E S S   P R O C E S S I N G   *******************
- *************************************************************************/
-control MyEgress(inout headers hdr,
-                 inout metadata meta,
-                 inout standard_metadata_t standard_metadata) {
-
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_a;
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_b;
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_x;
-    register<bit<32>>(1) reg_a_index;
-    register<bit<32>>(1) reg_b_index;
-    register<bit<32>>(1) reg_x_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_sent_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_recv_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_xor_received_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_rcv_seq_num_per_index;
-
-    bit<32> rcv_seq_num_per_index;
-    bit<32> this_pkt_index;
-    bit<32> a_index;
-    bit<32> b_index;
-    bit<32> x_index;
-    bit<32> num_sent_per_index;
-    bit<32> num_recv_per_index;
-    bit<32> xor_received_per_index;
-
-    action _nop () { 
-    }
-
-    action add_switch_stats(switchID_t swid) { 
-        hdr.stats.num_switch_stats = hdr.stats.num_switch_stats + 1;
-        hdr.switch_stats.push_front(1);
-        hdr.switch_stats[0].swid = swid;
-        hdr.switch_stats[0].igt = (ingress_global_timestamp_t)standard_metadata.ingress_global_timestamp;
-        hdr.switch_stats[0].enqt = (enq_timestamp_t)standard_metadata.enq_timestamp;
-        hdr.switch_stats[0].delt = (deq_timedelta_t)standard_metadata.deq_timedelta;
-    }
-
-    table switch_stats {
-        actions = { 
-        add_switch_stats; 
-        NoAction; 
-        }
-        default_action = NoAction();      
-    }
-
-    action egress_cloning_step() {
-        meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
-        meta.coding_metadata.operand_index = meta.coding_metadata.clone_number;
-        standard_metadata.clone_spec = 250;
-        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
-        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
-    }
-    action egress_cloning_stop() {
-        mark_to_drop();
-    }
-    action egress_coded_packets_processing() {
-        //Signal the next switch to simply forward this packet
-        hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
-
-        add_switch_stats(1);
-    }
-
-    table table_egress_clone {
-        key = {    
-               meta.coding_metadata.clone_status: exact;
-               meta.coding_metadata.clone_number: exact;
-              }
-        actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
-        size = 10;
-        default_action = _nop;
-    }
-
-    apply { 
-        if (hdr.coding.isValid()) {
-            // Logic for coding
-            if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
-                table_egress_clone.apply();
-            }
-            // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
                 //Signal the next switch to decode this packet
                 hdr.coding.packet_todo = CODING_PACKET_TO_DECODE;
 
-                switch_stats.apply();
+                table_mac_fwd.apply();
             }
 
-            // Logic for decoding
+            //Logic for decoding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
+
 
                 this_pkt_index = hdr.coding.coded_packets_seq_num % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
@@ -446,6 +372,7 @@ control MyEgress(inout headers hdr,
 
                     // Update here
                     reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                    table_mac_fwd.apply();
                 }
                 else
                 if (meta.decoding_metadata.is_clone == 0)
@@ -503,12 +430,14 @@ control MyEgress(inout headers hdr,
 
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                                table_mac_fwd.apply();
                                 }
                             else
                             if (xor_received_per_index == 0)
                             {
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                                table_mac_fwd.apply();
  
                             }
                         }
@@ -518,7 +447,7 @@ control MyEgress(inout headers hdr,
 
                             reg_xor_received_per_index.write(this_pkt_index, 1);
 
-                            // If one packet was previously received then decode using XOR
+                            // If one packet was previously received/sent then decode using XOR
                             if (num_sent_per_index == 1) {
                                 // Pickup the uncoded packet and xor it with this one to get the other payload
                                 payload_t uncoded_payload;
@@ -540,6 +469,7 @@ control MyEgress(inout headers hdr,
                                 }
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                                table_mac_fwd.apply();
      
                             } 
                             else 
@@ -554,10 +484,86 @@ control MyEgress(inout headers hdr,
                         // Update for all non-cloned packets
                         reg_num_recv_per_index.write(this_pkt_index, num_recv_per_index + 1);
 
-                        mark_to_drop();
                     } 
 
                 }
+                //mark_to_drop();
+            }
+        }
+        else 
+        {
+            mark_to_drop();
+        }
+    }
+}
+
+/*************************************************************************
+ ****************  E G R E S S   P R O C E S S I N G   *******************
+ *************************************************************************/
+control MyEgress(inout headers hdr,
+                 inout metadata meta,
+                 inout standard_metadata_t standard_metadata) {
+
+    action _nop () { 
+    }
+
+    action add_switch_stats(switchID_t swid) { 
+        hdr.stats.num_switch_stats = hdr.stats.num_switch_stats + 1;
+        hdr.switch_stats.push_front(1);
+        hdr.switch_stats[0].swid = swid;
+        hdr.switch_stats[0].igt = (ingress_global_timestamp_t)standard_metadata.ingress_global_timestamp;
+        hdr.switch_stats[0].enqt = (enq_timestamp_t)standard_metadata.enq_timestamp;
+        hdr.switch_stats[0].delt = (deq_timedelta_t)standard_metadata.deq_timedelta;
+    }
+
+    table switch_stats {
+        actions = { 
+        add_switch_stats; 
+        NoAction; 
+        }
+        default_action = NoAction();      
+    }
+
+    action egress_cloning_step() {
+        meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
+        meta.coding_metadata.operand_index = meta.coding_metadata.clone_number;
+        standard_metadata.clone_spec = 250;
+        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
+        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
+    }
+    action egress_cloning_stop() {
+        mark_to_drop();
+    }
+    action egress_coded_packets_processing() {
+        //Signal the next switch to simply forward this packet
+        hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+
+        add_switch_stats(1);
+    }
+
+    table table_egress_clone {
+        key = {    
+               meta.coding_metadata.clone_status: exact;
+               meta.coding_metadata.clone_number: exact;
+              }
+        actions = {_nop; egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
+        size = 10;
+        default_action = _nop;
+    }
+
+    apply { 
+        if (hdr.coding.isValid()) {
+            // Logic for coding
+            if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
+                table_egress_clone.apply();
+            }
+            // Logic to forward
+            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
+                switch_stats.apply();
+            }
+
+            // Logic for decoding
+            else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
 
                 switch_stats.apply();
             }

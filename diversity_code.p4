@@ -194,7 +194,6 @@ control MyIngress(inout headers hdr,
 
     register<payload_t>(2) reg_coding_payload_buffer;
     register<bit<32>>(1) reg_num_input_pkts;
-    register<bit<32>>(1) reg_coded_packets_batch_num;
 
     register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_a;
     register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_b;
@@ -295,23 +294,19 @@ control MyIngress(inout headers hdr,
                     reg_num_input_pkts.read(num_input_pkts, 0);
                     reg_num_input_pkts.write(0, num_input_pkts + 1);
 
-                    bit<32> curr_coded_packets_batch_num;
-                    reg_coded_packets_batch_num.read(curr_coded_packets_batch_num, 0);
-
                     // If it is the first of the two packets in the batch, send it out
                     if (num_input_pkts % CODING_BATCH_SIZE == 0)
                     {
                         reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
-                        send_from_ingress(2, CODING_A, curr_coded_packets_batch_num);
+                        send_from_ingress(2, CODING_A, num_input_pkts / CODING_BATCH_SIZE);
                     }
 
                     // If it is the second of two packets, don't send it out but keep track of it
                     // and clone
                     else if (num_input_pkts % CODING_BATCH_SIZE == 1)
                     {
-                        // Put the batch number in the packet metadata and increase it every two packets
-                        meta.coding_metadata.coded_packets_batch_num = curr_coded_packets_batch_num;
-                        reg_coded_packets_batch_num.write(0, curr_coded_packets_batch_num + 1);
+                        // Put the batch number in the packet metadata
+                        meta.coding_metadata.coded_packets_batch_num = num_input_pkts / CODING_BATCH_SIZE;
 
                         // Clone
                         meta.coding_metadata.clone_status = DO_CLONE;

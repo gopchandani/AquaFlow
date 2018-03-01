@@ -294,6 +294,7 @@ control MyIngress(inout headers hdr,
                 {
                     bit<32> num_input_pkts;
                     reg_num_input_pkts.read(num_input_pkts, 0);
+                    reg_num_input_pkts.write(0, num_input_pkts + 1);
 
                     bit<32> curr_coded_packets_batch_num;
                     reg_coded_packets_batch_num.read(curr_coded_packets_batch_num, 0);
@@ -302,25 +303,19 @@ control MyIngress(inout headers hdr,
                         reg_coded_packets_batch_num.write(0, curr_coded_packets_batch_num);
                     }
 
-                    // If it is the first of the two packets AND not a cloned packet, send it out
-                    if (num_input_pkts == 0)
+                    // If it is the first of the two packets in the batch, send it out
+                    if (num_input_pkts % CODING_BATCH_SIZE == 0)
                     {
                         reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
                         send_from_ingress(2, CODING_A, curr_coded_packets_batch_num);
-                        reg_num_input_pkts.write(0, 1);
                     }
 
                     // If it is the second of two packets, don't send it out but keep track of it
                     // and clone
-                    else if (num_input_pkts == 1)
+                    else if (num_input_pkts % CODING_BATCH_SIZE == 1)
                     {
-                        // Copy the payload for coding later on...
-                        reg_num_input_pkts.write(0, 0);
-
-                        // Put the sequence number in the packet metadata so it is maintained
+                        // Put the batch number in the packet metadata and increase it every two packets
                         meta.coding_metadata.coded_packets_batch_num = curr_coded_packets_batch_num;
-
-                        // Increase the coded sequence number, this happens every two packets
                         reg_coded_packets_batch_num.write(0, curr_coded_packets_batch_num + 1);
 
                         // Clone

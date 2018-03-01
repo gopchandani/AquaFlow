@@ -51,8 +51,10 @@ const bit<8> DONT_CLONE = 0;
 const bit<8> DO_CLONE = 1;
 const bit<8> POST_CLONE = 2;
 
-const bit<32> CODING_PAYLOAD_DECODING_BUFFER_LENGTH = 128;
+const bit<32> DECODING_BUFFER_SIZE = 128;
 const bit<32> INIT_CODED_PACKETS_SEQNUM = 1;
+
+const bit<32> CODING_BATCH_SIZE = 2;
 
 typedef bit<800> payload_t;
 
@@ -195,16 +197,16 @@ control MyIngress(inout headers hdr,
     register<bit<32>>(1) reg_num_input_pkts;
     register<bit<32>>(1) reg_coded_packets_batch_num;
 
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_a;
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_b;
-    register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_x;
+    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_a;
+    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_b;
+    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_x;
     register<bit<32>>(1) reg_a_index;
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_sent_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_num_recv_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_xor_received_per_index;
-    register<bit<32>>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_rcv_seq_num_per_index;
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_sent_per_index;
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_recv_per_index;
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_xor_received_per_index;
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_seq_num_per_index;
 
     bit<32> rcv_seq_num_per_index;
     bit<32> this_pkt_index;
@@ -344,8 +346,7 @@ control MyIngress(inout headers hdr,
             //Logic for decoding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
 
-
-                this_pkt_index = hdr.coding.coded_packets_batch_num % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+                this_pkt_index = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
                 // Get the number of pkts received for this seq num
                 reg_num_recv_per_index.read(num_recv_per_index, this_pkt_index);

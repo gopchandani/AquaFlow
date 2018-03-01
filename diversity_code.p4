@@ -55,7 +55,7 @@ const bit<32> DECODING_BUFFER_SIZE = 128;
 
 const bit<32> CODING_BATCH_SIZE = 2;
 
-typedef bit<800> payload_t;
+typedef bit<1600> payload_t;
 
 header coding_hdr_t {
     bit<8>  p;

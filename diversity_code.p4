@@ -287,40 +287,43 @@ control MyIngress(inout headers hdr,
             //Logic for Coding
 
             if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
-                bit<32> coding_payload_index;
-                reg_coding_payload_index.read(coding_payload_index, 0);
 
-                bit<32> curr_coded_packets_seq_num;
-                reg_coded_packets_seq_num.read(curr_coded_packets_seq_num, 0);
-                if (curr_coded_packets_seq_num == 0) {
-                    curr_coded_packets_seq_num = INIT_CODED_PACKETS_SEQNUM;
-                    reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num);
-                }
-
-                // If it is first of the two packets AND not a cloned packet, send it out
-                if (coding_payload_index == 0 && meta.coding_metadata.clone_number == 0)
+                // If it is not a cloned packet...
+                if (meta.coding_metadata.clone_number == 0)
                 {
-                    reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
-                    send_from_ingress(2, CODING_A, curr_coded_packets_seq_num);
-                    reg_coding_payload_index.write(0, 1);
-                } 
+                    bit<32> coding_payload_index;
+                    reg_coding_payload_index.read(coding_payload_index, 0);
 
-                // If it is second of two packets AND not a cloned packet, don't send it out
-                // but keep track of it 
-                else if (coding_payload_index == 1 && meta.coding_metadata.clone_number == 0) 
-                {
-                    meta.coding_metadata.clone_status = DO_CLONE;
-                    reg_coding_payload_index.write(0, 0);
- 
-                    // Put the sequence number in the packet metadata so it is maintained
-                    meta.coding_metadata.coded_packets_seq_num = curr_coded_packets_seq_num;
+                    bit<32> curr_coded_packets_seq_num;
+                    reg_coded_packets_seq_num.read(curr_coded_packets_seq_num, 0);
+                    if (curr_coded_packets_seq_num == 0) {
+                        curr_coded_packets_seq_num = INIT_CODED_PACKETS_SEQNUM;
+                        reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num);
+                    }
 
-                    // Increase the coded sequence number, this happens every two packets
-                    reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num + 1);
+                    // If it is first of the two packets AND not a cloned packet, send it out
+                    if (coding_payload_index == 0)
+                    {
+                        reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
+                        send_from_ingress(2, CODING_A, curr_coded_packets_seq_num);
+                        reg_coding_payload_index.write(0, 1);
+                    }
+
+                    // If it is second of two packets, don't send it out but keep track of it
+                    else if (coding_payload_index == 1)
+                    {
+                        meta.coding_metadata.clone_status = DO_CLONE;
+                        reg_coding_payload_index.write(0, 0);
+
+                        // Put the sequence number in the packet metadata so it is maintained
+                        meta.coding_metadata.coded_packets_seq_num = curr_coded_packets_seq_num;
+
+                        // Increase the coded sequence number, this happens every two packets
+                        reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num + 1);
+                    }
                 }
-
                 // If it is a cloned packet, do the coding and then send them out via table_ingress_code
-                if (meta.coding_metadata.clone_number > 0) 
+                else if (meta.coding_metadata.clone_number > 0)
                 {
                     switch(table_ingress_clone.apply().action_run) 
                     {

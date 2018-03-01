@@ -52,7 +52,6 @@ const bit<8> DO_CLONE = 1;
 const bit<8> POST_CLONE = 2;
 
 const bit<32> DECODING_BUFFER_SIZE = 128;
-const bit<32> INIT_CODED_PACKETS_SEQNUM = 1;
 
 const bit<32> CODING_BATCH_SIZE = 2;
 
@@ -298,10 +297,6 @@ control MyIngress(inout headers hdr,
 
                     bit<32> curr_coded_packets_batch_num;
                     reg_coded_packets_batch_num.read(curr_coded_packets_batch_num, 0);
-                    if (curr_coded_packets_batch_num == 0) {
-                        curr_coded_packets_batch_num = INIT_CODED_PACKETS_SEQNUM;
-                        reg_coded_packets_batch_num.write(0, curr_coded_packets_batch_num);
-                    }
 
                     // If it is the first of the two packets in the batch, send it out
                     if (num_input_pkts % CODING_BATCH_SIZE == 0)

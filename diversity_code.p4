@@ -247,7 +247,7 @@ control MyIngress(inout headers hdr,
     table table_ingress_code {
         key = {    
                hdr.ethernet.dstAddr: exact;
-               meta.coding_metadata.coding_payload_index: exact;
+               meta.coding_metadata.clone_number: exact;
               }
 
         actions = {_nop; ingress_index_1; ingress_index_2;}
@@ -526,7 +526,6 @@ control MyEgress(inout headers hdr,
 
     action egress_cloning_step() {
         meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
-        meta.coding_metadata.coding_payload_index = meta.coding_metadata.clone_number;
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
         recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});

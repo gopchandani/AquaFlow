@@ -301,7 +301,7 @@ control MyIngress(inout headers hdr,
                         reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num);
                     }
 
-                    // If it is first of the two packets AND not a cloned packet, send it out
+                    // If it is the first of the two packets AND not a cloned packet, send it out
                     if (coding_payload_index == 0)
                     {
                         reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
@@ -309,10 +309,11 @@ control MyIngress(inout headers hdr,
                         reg_coding_payload_index.write(0, 1);
                     }
 
-                    // If it is second of two packets, don't send it out but keep track of it
+                    // If it is the second of two packets, don't send it out but keep track of it
+                    // and clone
                     else if (coding_payload_index == 1)
                     {
-                        meta.coding_metadata.clone_status = DO_CLONE;
+                        // Copy the payload for coding later on...
                         reg_coding_payload_index.write(0, 0);
 
                         // Put the sequence number in the packet metadata so it is maintained
@@ -320,18 +321,16 @@ control MyIngress(inout headers hdr,
 
                         // Increase the coded sequence number, this happens every two packets
                         reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num + 1);
+
+                        // Clone
+                        meta.coding_metadata.clone_status = DO_CLONE;
+                        table_ingress_clone.apply();
                     }
                 }
                 // If it is a cloned packet, do the coding and then send them out via table_ingress_code
                 else if (meta.coding_metadata.clone_number > 0)
                 {
-                    switch(table_ingress_clone.apply().action_run) 
-                    {
-                        ingress_cloned_packets_loop: 
-                        {
-                            table_ingress_code.apply();
-                        }
-                    }
+                    table_ingress_code.apply();
                 }
             }
 

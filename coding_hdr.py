@@ -11,7 +11,7 @@ class CodingHdr(Packet):
                     XByteField("version", 0x01),
                     XByteField("packet_todo", 0x01),
                     StrFixedLenField("packet_contents", ' ', length=1),
-                    IntField("coded_packets_seqnum", 0),
+                    IntField("coded_packets_batch_num", 0),
                     StrFixedLenField("packet_payload", ' '*100, length=100)]
 
 
@@ -35,7 +35,7 @@ class CodingHdrR(Packet):
                     XByteField("version", 0x01),
                     XByteField("packet_todo", 0x01),
                     StrFixedLenField("packet_contents", ' ', length=1),
-                    IntField("coded_packets_seqnum", 0),
+                    IntField("coded_packets_batch_num", 0),
                     StrFixedLenField("packet_payload", ' '*100, length=100)]
 
 

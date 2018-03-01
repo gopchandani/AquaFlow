@@ -44,18 +44,18 @@ def print_status(pkt):
     
     if pkt[CodingHdrR].packet_contents == 'A':
         a += 1
-        if a_max_seqnum < int(pkt[CodingHdrR].coded_packets_seqnum):
-            a_max_seqnum = int(pkt[CodingHdrR].coded_packets_seqnum)
+        if a_max_seqnum < int(pkt[CodingHdrR].coded_packets_batch_num):
+            a_max_seqnum = int(pkt[CodingHdrR].coded_packets_batch_num)
 
     elif pkt[CodingHdrR].packet_contents == 'B':
         b += 1
-        if b_max_seqnum < int(pkt[CodingHdrR].coded_packets_seqnum):
-            b_max_seqnum = int(pkt[CodingHdrR].coded_packets_seqnum)
+        if b_max_seqnum < int(pkt[CodingHdrR].coded_packets_batch_num):
+            b_max_seqnum = int(pkt[CodingHdrR].coded_packets_batch_num)
 
     elif pkt[CodingHdrR].packet_contents == 'X':
         x += 1
-        if x_max_seqnum < int(pkt[CodingHdrR].coded_packets_seqnum):
-            x_max_seqnum = int(pkt[CodingHdrR].coded_packets_seqnum)
+        if x_max_seqnum < int(pkt[CodingHdrR].coded_packets_batch_num):
+            x_max_seqnum = int(pkt[CodingHdrR].coded_packets_batch_num)
 
         if pkt[CodingHdrR].packet_payload[0] == 'A':
             x_with_a += 1

@@ -62,7 +62,7 @@ header coding_hdr_t {
     bit<8>  ver;
     bit<8>  packet_todo;
     bit<8>  packet_contents;
-    bit<32>  coded_packets_seq_num;
+    bit<32>  coded_packets_batch_num;
     payload_t packet_payload;
 }
 
@@ -113,9 +113,8 @@ struct intrinsic_metadata_t {
 
 struct coding_metadata_t { 
     bit<16> clone_number;
-    bit<16> coding_payload_index;
     bit<8>  clone_status;
-    bit<32> coded_packets_seq_num;
+    bit<32> coded_packets_batch_num;
 }
 
 struct decoding_metadata_t {
@@ -193,8 +192,8 @@ control MyIngress(inout headers hdr,
                   inout standard_metadata_t standard_metadata) {
 
     register<payload_t>(2) reg_coding_payload_buffer;
-    register<bit<32>>(1) reg_coding_payload_index;
-    register<bit<32>>(1) reg_coded_packets_seq_num;
+    register<bit<32>>(1) reg_num_input_pkts;
+    register<bit<32>>(1) reg_coded_packets_batch_num;
 
     register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_a;
     register<payload_t>(CODING_PAYLOAD_DECODING_BUFFER_LENGTH) reg_payload_decoding_buffer_b;
@@ -219,8 +218,8 @@ control MyIngress(inout headers hdr,
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port, bit<8> packet_contents, bit<32> packet_coded_packets_seq_num) {
-        hdr.coding.coded_packets_seq_num = packet_coded_packets_seq_num;
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_contents, bit<32> packet_coded_packets_batch_num) {
+        hdr.coding.coded_packets_batch_num = packet_coded_packets_batch_num;
         hdr.coding.packet_contents = packet_contents;
         standard_metadata.egress_spec = egress_port;
         meta.coding_metadata.clone_status = POST_CLONE;
@@ -232,7 +231,7 @@ control MyIngress(inout headers hdr,
 
     action ingress_index_1 (bit<9> egress_port) {
         reg_coding_payload_buffer.write(1, hdr.coding.packet_payload);
-        send_from_ingress(egress_port, CODING_B, meta.coding_metadata.coded_packets_seq_num);
+        send_from_ingress(egress_port, CODING_B, meta.coding_metadata.coded_packets_batch_num);
     }
 
     action ingress_index_2 (bit<9> egress_port) {
@@ -241,7 +240,7 @@ control MyIngress(inout headers hdr,
         reg_coding_payload_buffer.read(operand1, 0);
         reg_coding_payload_buffer.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
-        send_from_ingress(egress_port, CODING_X, meta.coding_metadata.coded_packets_seq_num);
+        send_from_ingress(egress_port, CODING_X, meta.coding_metadata.coded_packets_batch_num);
     }
 
     table table_ingress_code {
@@ -291,36 +290,36 @@ control MyIngress(inout headers hdr,
                 // If it is not a cloned packet...
                 if (meta.coding_metadata.clone_number == 0)
                 {
-                    bit<32> coding_payload_index;
-                    reg_coding_payload_index.read(coding_payload_index, 0);
+                    bit<32> num_input_pkts;
+                    reg_num_input_pkts.read(num_input_pkts, 0);
 
-                    bit<32> curr_coded_packets_seq_num;
-                    reg_coded_packets_seq_num.read(curr_coded_packets_seq_num, 0);
-                    if (curr_coded_packets_seq_num == 0) {
-                        curr_coded_packets_seq_num = INIT_CODED_PACKETS_SEQNUM;
-                        reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num);
+                    bit<32> curr_coded_packets_batch_num;
+                    reg_coded_packets_batch_num.read(curr_coded_packets_batch_num, 0);
+                    if (curr_coded_packets_batch_num == 0) {
+                        curr_coded_packets_batch_num = INIT_CODED_PACKETS_SEQNUM;
+                        reg_coded_packets_batch_num.write(0, curr_coded_packets_batch_num);
                     }
 
                     // If it is the first of the two packets AND not a cloned packet, send it out
-                    if (coding_payload_index == 0)
+                    if (num_input_pkts == 0)
                     {
                         reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
-                        send_from_ingress(2, CODING_A, curr_coded_packets_seq_num);
-                        reg_coding_payload_index.write(0, 1);
+                        send_from_ingress(2, CODING_A, curr_coded_packets_batch_num);
+                        reg_num_input_pkts.write(0, 1);
                     }
 
                     // If it is the second of two packets, don't send it out but keep track of it
                     // and clone
-                    else if (coding_payload_index == 1)
+                    else if (num_input_pkts == 1)
                     {
                         // Copy the payload for coding later on...
-                        reg_coding_payload_index.write(0, 0);
+                        reg_num_input_pkts.write(0, 0);
 
                         // Put the sequence number in the packet metadata so it is maintained
-                        meta.coding_metadata.coded_packets_seq_num = curr_coded_packets_seq_num;
+                        meta.coding_metadata.coded_packets_batch_num = curr_coded_packets_batch_num;
 
                         // Increase the coded sequence number, this happens every two packets
-                        reg_coded_packets_seq_num.write(0, curr_coded_packets_seq_num + 1);
+                        reg_coded_packets_batch_num.write(0, curr_coded_packets_batch_num + 1);
 
                         // Clone
                         meta.coding_metadata.clone_status = DO_CLONE;
@@ -346,7 +345,7 @@ control MyIngress(inout headers hdr,
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
 
 
-                this_pkt_index = hdr.coding.coded_packets_seq_num % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
+                this_pkt_index = hdr.coding.coded_packets_batch_num % CODING_PAYLOAD_DECODING_BUFFER_LENGTH;
 
                 // Get the number of pkts received for this seq num
                 reg_num_recv_per_index.read(num_recv_per_index, this_pkt_index);
@@ -363,7 +362,7 @@ control MyIngress(inout headers hdr,
                 //If it is zero, then set this current pkt as the occupant
                 if (rcv_seq_num_per_index == 0)
                 {
-                    reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_seq_num);
+                    reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
                 }
 
                 if (meta.decoding_metadata.is_clone == 1)  {
@@ -381,7 +380,7 @@ control MyIngress(inout headers hdr,
                 if (meta.decoding_metadata.is_clone == 0)
                 {
                     // if the sequence number of the packet(s) in the buffer is different than this packet then rollover has occured, reset everything.
-                    if (hdr.coding.coded_packets_seq_num != rcv_seq_num_per_index) 
+                    if (hdr.coding.coded_packets_batch_num != rcv_seq_num_per_index) 
                     {
                         reg_xor_received_per_index.write(this_pkt_index, 0);
                         reg_num_sent_per_index.write(this_pkt_index, 0);
@@ -392,7 +391,7 @@ control MyIngress(inout headers hdr,
                         num_recv_per_index = 0;
     
                         // And put the new seq_num in the buffer
-                        reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_seq_num);
+                        reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
                     }
 
                     if (num_sent_per_index < 2)

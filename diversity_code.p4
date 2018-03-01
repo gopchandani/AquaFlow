@@ -206,9 +206,9 @@ control MyIngress(inout headers hdr,
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_sent_per_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_recv_per_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_xor_received_per_index;
-    register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_seq_num_per_index;
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_batch_num_per_index;
 
-    bit<32> rcv_seq_num_per_index;
+    bit<32> rcv_batch_num_per_index;
     bit<32> this_pkt_index;
     bit<32> a_index;
     bit<32> b_index;
@@ -343,22 +343,22 @@ control MyIngress(inout headers hdr,
 
                 this_pkt_index = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
-                // Get the number of pkts received for this seq num
+                // Get the number of pkts received for this batch num
                 reg_num_recv_per_index.read(num_recv_per_index, this_pkt_index);
 
-                // Get the number of sent out for this seq num
+                // Get the number of sent out for this batch num
                 reg_num_sent_per_index.read(num_sent_per_index, this_pkt_index);
 
                 // Get the status of received packets for this index
                 reg_xor_received_per_index.read(xor_received_per_index, this_pkt_index);
 
-                //Get the current occupant seq_num of this index
-                reg_rcv_seq_num_per_index.read(rcv_seq_num_per_index, this_pkt_index);
+                //Get the current occupant batch_num of this index
+                reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, this_pkt_index);
 
                 //If it is zero, then set this current pkt as the occupant
-                if (rcv_seq_num_per_index == 0)
+                if (rcv_batch_num_per_index == 0)
                 {
-                    reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
+                    reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
                 }
 
                 if (meta.decoding_metadata.is_clone == 1)  {
@@ -375,8 +375,8 @@ control MyIngress(inout headers hdr,
                 else
                 if (meta.decoding_metadata.is_clone == 0)
                 {
-                    // if the sequence number of the packet(s) in the buffer is different than this packet then rollover has occured, reset everything.
-                    if (hdr.coding.coded_packets_batch_num != rcv_seq_num_per_index) 
+                    // if the batch number of the packet(s) in the buffer is different than this packet then rollover has occured, reset everything.
+                    if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index) 
                     {
                         reg_xor_received_per_index.write(this_pkt_index, 0);
                         reg_num_sent_per_index.write(this_pkt_index, 0);
@@ -386,8 +386,8 @@ control MyIngress(inout headers hdr,
                         num_sent_per_index = 0;
                         num_recv_per_index = 0;
     
-                        // And put the new seq_num in the buffer
-                        reg_rcv_seq_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
+                        // And put the new batch_num in the buffer
+                        reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
                     }
 
                     if (num_sent_per_index < 2)

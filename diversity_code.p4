@@ -115,7 +115,6 @@ struct intrinsic_metadata_t {
 struct coding_metadata_t { 
     bit<16> clone_number;
     bit<8>  clone_status;
-    bit<32> coded_packets_batch_num;
     bit<32> coded_batch_packet_num;
     bit<8>  per_batch_input_packet_num;
 }
@@ -195,7 +194,9 @@ control MyIngress(inout headers hdr,
                   inout standard_metadata_t standard_metadata) {
 
     register<payload_t>(2) reg_coding_payload_buffer;
-    register<bit<32>>(1) reg_num_input_pkts;
+    register<bit<32>>(1) reg_num_coding_input_pkts;
+    bit<32> num_coding_input_pkts;
+    
 
     register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_a;
     register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_b;
@@ -220,8 +221,9 @@ control MyIngress(inout headers hdr,
     action _nop () { 
     }
 
-    action send_from_ingress(bit<9> egress_port, bit<8> packet_contents, bit<32> packet_coded_packets_batch_num) {
-        hdr.coding.coded_packets_batch_num = packet_coded_packets_batch_num;
+    action send_from_ingress(bit<9> egress_port, bit<8> packet_contents) {
+        reg_num_coding_input_pkts.read(num_coding_input_pkts, 0);
+        hdr.coding.coded_packets_batch_num = num_coding_input_pkts / CODING_INPUT_BATCH_SIZE;;
         hdr.coding.packet_contents = packet_contents;
         standard_metadata.egress_spec = egress_port;
         meta.coding_metadata.clone_status = POST_CLONE;
@@ -231,9 +233,16 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
+    action ingress_index_0 (bit<9> egress_port) {
+
+        reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
+        send_from_ingress(egress_port, CODING_A);
+    }
+
     action ingress_index_1 (bit<9> egress_port) {
+
         reg_coding_payload_buffer.write(1, hdr.coding.packet_payload);
-        send_from_ingress(egress_port, CODING_B, meta.coding_metadata.coded_packets_batch_num);
+        send_from_ingress(egress_port, CODING_B);
     }
 
     action ingress_index_2 (bit<9> egress_port) {
@@ -242,17 +251,17 @@ control MyIngress(inout headers hdr,
         reg_coding_payload_buffer.read(operand1, 0);
         reg_coding_payload_buffer.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
-        send_from_ingress(egress_port, CODING_X, meta.coding_metadata.coded_packets_batch_num);
+        send_from_ingress(egress_port, CODING_X);
     }
 
     table table_ingress_code {
         key = {    
                 hdr.ethernet.dstAddr: exact;
-                meta.coding_metadata.clone_number: exact;
                 meta.coding_metadata.coded_batch_packet_num: exact;
+                meta.coding_metadata.clone_number: exact;
               }
 
-        actions = {_nop; ingress_index_1; ingress_index_2;}
+        actions = {_nop; ingress_index_0; ingress_index_1; ingress_index_2;}
         size = 10;
         default_action = _nop;
     }
@@ -290,39 +299,22 @@ control MyIngress(inout headers hdr,
 
             if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
 
-                // If it is not a cloned packet...
+                // Increase these counters for input packets
                 if (meta.coding_metadata.clone_number == 0)
                 {
-                    bit<32> num_input_pkts;
-                    reg_num_input_pkts.read(num_input_pkts, 0);
-                    reg_num_input_pkts.write(0, num_input_pkts + 1);
+                    reg_num_coding_input_pkts.read(num_coding_input_pkts, 0);
+                    reg_num_coding_input_pkts.write(0, num_coding_input_pkts + 1);
+                    meta.coding_metadata.coded_batch_packet_num = num_coding_input_pkts % CODING_INPUT_BATCH_SIZE;
+                }
 
-                    meta.coding_metadata.coded_batch_packet_num = num_input_pkts % CODING_INPUT_BATCH_SIZE;
-                    meta.coding_metadata.coded_packets_batch_num = num_input_pkts / CODING_INPUT_BATCH_SIZE;
-
-                    // If it is the first of the two packets in the batch, send it out
-                    if (meta.coding_metadata.coded_batch_packet_num == 0)
+                // Hit the coding table, it will know what to do with this packet
+                switch(table_ingress_code.apply().action_run)
+                {
+                    ingress_index_1:
                     {
-                        reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
-                        send_from_ingress(2, CODING_A, num_input_pkts / CODING_INPUT_BATCH_SIZE);
-                    }
-
-                    // If it is the second of two packets, don't send it out but keep track of it
-                    // and clone
-                    else if (meta.coding_metadata.coded_batch_packet_num == 1)
-                    {
-                        // Put the batch number in the packet metadata
-                        meta.coding_metadata.coded_packets_batch_num = num_input_pkts / CODING_INPUT_BATCH_SIZE;
-
-                        // Clone
                         meta.coding_metadata.clone_status = DO_CLONE;
                         table_ingress_clone.apply();
                     }
-                }
-                // If it is a cloned packet, do the coding and then send them out via table_ingress_code
-                else if (meta.coding_metadata.clone_number > 0)
-                {
-                    table_ingress_code.apply();
                 }
             }
 

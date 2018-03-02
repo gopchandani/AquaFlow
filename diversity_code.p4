@@ -53,7 +53,7 @@ const bit<8> POST_CLONE = 2;
 
 const bit<32> DECODING_BUFFER_SIZE = 128;
 
-const bit<32> CODING_BATCH_SIZE = 2;
+const bit<32> CODING_INPUT_BATCH_SIZE = 2;
 
 typedef bit<1600> payload_t;
 
@@ -116,6 +116,8 @@ struct coding_metadata_t {
     bit<16> clone_number;
     bit<8>  clone_status;
     bit<32> coded_packets_batch_num;
+    bit<32> coded_batch_packet_num;
+    bit<8>  per_batch_input_packet_num;
 }
 
 struct decoding_metadata_t {
@@ -247,6 +249,7 @@ control MyIngress(inout headers hdr,
         key = {    
                hdr.ethernet.dstAddr: exact;
                meta.coding_metadata.clone_number: exact;
+
               }
 
         actions = {_nop; ingress_index_1; ingress_index_2;}
@@ -294,19 +297,22 @@ control MyIngress(inout headers hdr,
                     reg_num_input_pkts.read(num_input_pkts, 0);
                     reg_num_input_pkts.write(0, num_input_pkts + 1);
 
+                    meta.coding_metadata.coded_batch_packet_num = num_input_pkts % CODING_INPUT_BATCH_SIZE;
+                    meta.coding_metadata.coded_packets_batch_num = num_input_pkts / CODING_INPUT_BATCH_SIZE;
+
                     // If it is the first of the two packets in the batch, send it out
-                    if (num_input_pkts % CODING_BATCH_SIZE == 0)
+                    if (meta.coding_metadata.coded_batch_packet_num == 0)
                     {
                         reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
-                        send_from_ingress(2, CODING_A, num_input_pkts / CODING_BATCH_SIZE);
+                        send_from_ingress(2, CODING_A, num_input_pkts / CODING_INPUT_BATCH_SIZE);
                     }
 
                     // If it is the second of two packets, don't send it out but keep track of it
                     // and clone
-                    else if (num_input_pkts % CODING_BATCH_SIZE == 1)
+                    else if (meta.coding_metadata.coded_batch_packet_num == 1)
                     {
                         // Put the batch number in the packet metadata
-                        meta.coding_metadata.coded_packets_batch_num = num_input_pkts / CODING_BATCH_SIZE;
+                        meta.coding_metadata.coded_packets_batch_num = num_input_pkts / CODING_INPUT_BATCH_SIZE;
 
                         // Clone
                         meta.coding_metadata.clone_status = DO_CLONE;
@@ -471,11 +477,9 @@ control MyIngress(inout headers hdr,
                     {
                         // Update for all non-cloned packets
                         reg_num_recv_per_index.write(this_pkt_index, num_recv_per_index + 1);
-
                     } 
 
                 }
-                //mark_to_drop();
             }
         }
         else 

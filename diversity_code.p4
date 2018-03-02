@@ -47,8 +47,8 @@ const bit<8>  CODING_PACKET_TO_CODE     = 0x01;
 const bit<8>  CODING_PACKET_TO_FORWARD  = 0x02;
 const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
 
-const bit<8> DONT_CLONE = 0;
-const bit<8> DO_CLONE = 1;
+const bit<1> DONT_CLONE = 0;
+const bit<1> DO_CLONE = 1;
 
 const bit<32> DECODING_BUFFER_SIZE = 128;
 
@@ -112,9 +112,9 @@ struct intrinsic_metadata_t {
 }
 
 struct coding_metadata_t { 
-    bit<16> clone_number;
+    bit<16> coding_loop_index;
     bit<1>  clone_at_egress;
-    bit<8>  per_batch_input_packet_num;
+    bit<32>  per_batch_input_packet_num;
 }
 
 struct decoding_metadata_t {
@@ -508,7 +508,7 @@ control MyEgress(inout headers hdr,
 
         // Stop cloning this so that recirculate step picks it up
         meta.coding_metadata.coding_loop_index = meta.coding_metadata.coding_loop_index + 1;
-        meta.coding_metadata.clone_at_egress == DONT_CLONE;
+        meta.coding_metadata.clone_at_egress = DONT_CLONE;
 
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
@@ -525,7 +525,7 @@ control MyEgress(inout headers hdr,
                 meta.coding_metadata.coding_loop_index: exact;
                 meta.coding_metadata.clone_at_egress: exact;
               }
-        actions = {egress_cloning_step; egress_coded_packets_processing;}
+        actions = {egress_cloning_step; egress_recirculate_step;}
         size = 10;
     }
 

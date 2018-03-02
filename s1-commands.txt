@@ -7,6 +7,6 @@ table_add table_ingress_code cloning_start 00:00:00:00:05:02 0 0 =>
 table_add table_ingress_code code_forward 00:00:00:00:05:02 1 1 => 4 0
 
 table_add table_egress_code egress_cloning_step 00:00:00:00:05:02 0 1 =>
-table_add table_egress_code egress_recirculate_step 00:00:00:00:05:02 1 0 =>
+table_add table_egress_code egress_recirculate_step 00:00:00:00:05:02 1 1 =>
 
 mirroring_add 250 1

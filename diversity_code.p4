@@ -508,7 +508,6 @@ control MyEgress(inout headers hdr,
 
         // Stop cloning this so that recirculate step picks it up
         meta.coding_metadata.coding_loop_index = meta.coding_metadata.coding_loop_index + 1;
-        meta.coding_metadata.clone_at_egress = DONT_CLONE;
 
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});

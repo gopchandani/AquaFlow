@@ -540,6 +540,7 @@ control MyEgress(inout headers hdr,
                     hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
                     switch_stats.apply();
                 }
+
             }
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {

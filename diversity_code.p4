@@ -247,9 +247,9 @@ control MyIngress(inout headers hdr,
 
     table table_ingress_code {
         key = {    
-               hdr.ethernet.dstAddr: exact;
-               meta.coding_metadata.clone_number: exact;
-
+                hdr.ethernet.dstAddr: exact;
+                meta.coding_metadata.clone_number: exact;
+                meta.coding_metadata.coded_batch_packet_num: exact;
               }
 
         actions = {_nop; ingress_index_1; ingress_index_2;}

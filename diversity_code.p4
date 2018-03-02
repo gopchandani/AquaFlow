@@ -276,7 +276,7 @@ control MyIngress(inout headers hdr,
                meta.coding_metadata.clone_number: exact;
               }
 
-        actions = {_nop; ingress_cloned_packets_loop; send_from_ingress;}
+        actions = {_nop; ingress_cloned_packets_loop;}
         size = 10;
         default_action = _nop;
     }
@@ -511,9 +511,7 @@ control MyEgress(inout headers hdr,
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
         recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
     }
-    action egress_cloning_stop() {
-        mark_to_drop();
-    }
+
     action egress_coded_packets_processing(switchID_t swid) {
         //Signal the next switch to simply forward this packet
         hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
@@ -526,7 +524,7 @@ control MyEgress(inout headers hdr,
                meta.coding_metadata.clone_status: exact;
                meta.coding_metadata.clone_number: exact;
               }
-        actions = {egress_cloning_step; egress_cloning_stop; egress_coded_packets_processing;}
+        actions = {egress_cloning_step; egress_coded_packets_processing;}
         size = 10;
     }
 

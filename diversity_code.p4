@@ -113,7 +113,7 @@ struct intrinsic_metadata_t {
 
 struct coding_metadata_t { 
     bit<16> clone_number;
-    bit<8>  clone_status;
+    bit<1>  clone_at_egress;
     bit<8>  per_batch_input_packet_num;
 }
 
@@ -253,25 +253,30 @@ control MyIngress(inout headers hdr,
         default_action = _nop;
     }
 
-    action do_coding (bit<9> egress_port) {
+    action code_forward (bit<9> egress_port, bit<1> continue_cloning) {
         payload_t operand1;
         payload_t operand2;
         reg_coding_payload_buffer.read(operand1, 0);
         reg_coding_payload_buffer.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
         send_from_ingress(egress_port, CODING_X);
+
+        meta.coding_metadata.clone_at_egress = continue_cloning;
+
     }
-    
-    action ingress_cloned_packets_loop () { 
-        meta.coding_metadata.clone_status = DO_CLONE;
+
+    action cloning_start () {
+        meta.coding_metadata.clone_at_egress = DO_CLONE;
     }
 
     table table_ingress_code {
-        key = {    
-               meta.coding_metadata.clone_number: exact;
+        key = {
+                hdr.ethernet.dstAddr: exact;
+                meta.coding_metadata.coding_loop_index: exact;
+                meta.coding_metadata.clone_at_egress: exact;
               }
 
-        actions = {_nop; ingress_cloned_packets_loop; do_coding;}
+        actions = {_nop; cloning_start; code_forward;}
         size = 10;
         default_action = _nop;
     }
@@ -295,7 +300,7 @@ control MyIngress(inout headers hdr,
             if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
 
                 // Increase these counters for input packets
-                if (meta.coding_metadata.clone_number == 0)
+                if (meta.coding_metadata.coding_loop_index == 0)
                 {
                     reg_num_coding_input_pkts.read(num_coding_input_pkts, 0);
                     reg_num_coding_input_pkts.write(0, num_coding_input_pkts + 1);
@@ -500,23 +505,25 @@ control MyEgress(inout headers hdr,
     }
 
     action egress_cloning_step() {
-        meta.coding_metadata.clone_number = meta.coding_metadata.clone_number + 1;
+
+        // Stop cloning this so that recirculate step picks it up
+        meta.coding_metadata.coding_loop_index = meta.coding_metadata.coding_loop_index + 1;
+        meta.coding_metadata.clone_at_egress == DONT_CLONE;
+
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
-        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
+
     }
 
-    action egress_coded_packets_processing(switchID_t swid) {
-        //Signal the next switch to simply forward this packet
-        hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
-
-        add_switch_stats(swid);
+    action egress_recirculate_step() {
+        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
     }
 
     table table_egress_code {
         key = {
-               meta.coding_metadata.clone_status: exact;
-               meta.coding_metadata.clone_number: exact;
+                hdr.ethernet.dstAddr: exact;
+                meta.coding_metadata.coding_loop_index: exact;
+                meta.coding_metadata.clone_at_egress: exact;
               }
         actions = {egress_cloning_step; egress_coded_packets_processing;}
         size = 10;
@@ -526,7 +533,14 @@ control MyEgress(inout headers hdr,
         if (hdr.coding.isValid()) {
             // Logic for coding
             if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
-                table_egress_code.apply();
+
+                if (meta.coding_metadata.clone_at_egress == DO_CLONE) {
+                    table_egress_code.apply();
+                } else
+                {
+                    hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+                    switch_stats.apply();
+                }
             }
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {

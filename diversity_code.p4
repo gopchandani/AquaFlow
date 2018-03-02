@@ -49,7 +49,6 @@ const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
 
 const bit<8> DONT_CLONE = 0;
 const bit<8> DO_CLONE = 1;
-const bit<8> POST_CLONE = 2;
 
 const bit<32> DECODING_BUFFER_SIZE = 128;
 
@@ -115,7 +114,6 @@ struct intrinsic_metadata_t {
 struct coding_metadata_t { 
     bit<16> clone_number;
     bit<8>  clone_status;
-    bit<32> coded_batch_packet_num;
     bit<8>  per_batch_input_packet_num;
 }
 
@@ -226,26 +224,36 @@ control MyIngress(inout headers hdr,
         hdr.coding.coded_packets_batch_num = num_coding_input_pkts / CODING_INPUT_BATCH_SIZE;;
         hdr.coding.packet_contents = packet_contents;
         standard_metadata.egress_spec = egress_port;
-        meta.coding_metadata.clone_status = POST_CLONE;
     }
 
     action mac_forward_from_ingress(bit<9> egress_port) {
         standard_metadata.egress_spec = egress_port;
     }
 
-    action ingress_index_0 (bit<9> egress_port) {
+    action copy_forward (bit<9> egress_port) {
 
-        reg_coding_payload_buffer.write(0, hdr.coding.packet_payload);
+        reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
         send_from_ingress(egress_port, CODING_A);
     }
 
-    action ingress_index_1 (bit<9> egress_port) {
+    action copy_forward_trigger (bit<9> egress_port) {
 
-        reg_coding_payload_buffer.write(1, hdr.coding.packet_payload);
+        reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
         send_from_ingress(egress_port, CODING_B);
     }
 
-    action ingress_index_2 (bit<9> egress_port) {
+    table table_coding_input {
+        key = {    
+                hdr.ethernet.dstAddr: exact;
+                meta.coding_metadata.per_batch_input_packet_num: exact;
+              }
+
+        actions = {_nop; copy_forward; copy_forward_trigger;}
+        size = 10;
+        default_action = _nop;
+    }
+
+    action do_coding (bit<9> egress_port) {
         payload_t operand1;
         payload_t operand2;
         reg_coding_payload_buffer.read(operand1, 0);
@@ -253,30 +261,17 @@ control MyIngress(inout headers hdr,
         hdr.coding.packet_payload = operand1 ^ operand2;
         send_from_ingress(egress_port, CODING_X);
     }
+    
+    action ingress_cloned_packets_loop () { 
+        meta.coding_metadata.clone_status = DO_CLONE;
+    }
 
     table table_ingress_code {
-        key = {    
-                hdr.ethernet.dstAddr: exact;
-                meta.coding_metadata.coded_batch_packet_num: exact;
-                meta.coding_metadata.clone_number: exact;
-              }
-
-        actions = {_nop; ingress_index_0; ingress_index_1; ingress_index_2;}
-        size = 10;
-        default_action = _nop;
-    }
-
-    action ingress_cloned_packets_loop () { 
-        // This causes the packet to be not cloned at egress 
-        meta.coding_metadata.clone_status = DONT_CLONE;
-    }
-
-    table table_ingress_clone {
         key = {    
                meta.coding_metadata.clone_number: exact;
               }
 
-        actions = {_nop; ingress_cloned_packets_loop;}
+        actions = {_nop; ingress_cloned_packets_loop; do_coding;}
         size = 10;
         default_action = _nop;
     }
@@ -304,16 +299,15 @@ control MyIngress(inout headers hdr,
                 {
                     reg_num_coding_input_pkts.read(num_coding_input_pkts, 0);
                     reg_num_coding_input_pkts.write(0, num_coding_input_pkts + 1);
-                    meta.coding_metadata.coded_batch_packet_num = num_coding_input_pkts % CODING_INPUT_BATCH_SIZE;
+                    meta.coding_metadata.per_batch_input_packet_num = num_coding_input_pkts % CODING_INPUT_BATCH_SIZE;
                 }
 
-                // Hit the coding table, it will know what to do with this packet
-                switch(table_ingress_code.apply().action_run)
+                // Hit the coding input table, it will know what to do with this packet
+                switch(table_coding_input.apply().action_run)
                 {
-                    ingress_index_1:
+                    copy_forward_trigger:
                     {
-                        meta.coding_metadata.clone_status = DO_CLONE;
-                        table_ingress_clone.apply();
+                        table_ingress_code.apply();
                     }
                 }
             }
@@ -519,8 +513,8 @@ control MyEgress(inout headers hdr,
         add_switch_stats(swid);
     }
 
-    table table_egress_clone {
-        key = {    
+    table table_egress_code {
+        key = {
                meta.coding_metadata.clone_status: exact;
                meta.coding_metadata.clone_number: exact;
               }
@@ -528,11 +522,11 @@ control MyEgress(inout headers hdr,
         size = 10;
     }
 
-    apply { 
+    apply {
         if (hdr.coding.isValid()) {
             // Logic for coding
             if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
-                table_egress_clone.apply();
+                table_egress_code.apply();
             }
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {

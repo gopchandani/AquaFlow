@@ -498,8 +498,8 @@ control MyEgress(inout headers hdr,
 
     action remove_switch_stats() {
         hdr.stats.num_switch_stats = hdr.stats.num_switch_stats - 1;
-        hdr.switch_stats.pop_front(1);
         hdr.switch_stats[0].setInvalid();
+        hdr.switch_stats.pop_front(1);
     }
 
     table switch_stats {
@@ -510,7 +510,7 @@ control MyEgress(inout headers hdr,
         default_action = NoAction();      
     }
 
-    action egress_cloning_step() {
+    action egress_cloning_step(switchID_t swid) {
 
         // Stop cloning this so that recirculate step picks it up
         meta.coding_metadata.coding_loop_index = meta.coding_metadata.coding_loop_index + 1;
@@ -518,7 +518,7 @@ control MyEgress(inout headers hdr,
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
 
-        add_switch_stats(1);
+        add_switch_stats(swid);
     }
 
     action egress_recirculate_step() {

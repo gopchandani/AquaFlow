@@ -496,6 +496,12 @@ control MyEgress(inout headers hdr,
         hdr.switch_stats[0].delt = (deq_timedelta_t)standard_metadata.deq_timedelta;
     }
 
+    action remove_switch_stats() {
+        hdr.stats.num_switch_stats = hdr.stats.num_switch_stats - 1;
+        hdr.switch_stats.pop_front(1);
+        hdr.switch_stats[0].setInvalid();
+    }
+
     table switch_stats {
         actions = { 
         add_switch_stats; 
@@ -512,9 +518,11 @@ control MyEgress(inout headers hdr,
         standard_metadata.clone_spec = 250;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
 
+        add_switch_stats(1);
     }
 
     action egress_recirculate_step() {
+        remove_switch_stats();
         recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
     }
 

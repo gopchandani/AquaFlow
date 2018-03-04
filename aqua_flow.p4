@@ -241,7 +241,7 @@ control MyIngress(inout headers hdr,
         send_from_ingress(egress_port, packet_contents);
     }
 
-    table table_coding_input {
+    table table_input_splitting {
         key = {    
                 hdr.ethernet.dstAddr: exact;
                 meta.coding_metadata.per_batch_input_packet_num: exact;
@@ -307,7 +307,7 @@ control MyIngress(inout headers hdr,
                 }
 
                 // Hit the coding input table, it will know what to do with this packet
-                switch(table_coding_input.apply().action_run)
+                switch(table_input_splitting.apply().action_run)
                 {
                     copy_forward_trigger:
                     {

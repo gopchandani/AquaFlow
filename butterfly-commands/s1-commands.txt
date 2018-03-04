@@ -1,4 +1,4 @@
 table_set_default switch_stats add_switch_stats 1
 
-table_add table_coding_input copy_forward 01:0C:CD:01:00:00 0 => 2 65
-table_add table_coding_input copy_forward 01:0C:CD:01:00:00 1 => 3 66
+table_add table_input_splitting copy_forward 01:0C:CD:01:00:00 0 => 2 65
+table_add table_input_splitting copy_forward 01:0C:CD:01:00:00 1 => 3 66

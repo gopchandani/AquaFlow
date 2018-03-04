@@ -1,5 +1,5 @@
 {
-    "program": "diversity_code.p4",
+    "program": "aqua_flow.p4",
     "language": "p4-16",
     "targets": {
       "multiswitch": {

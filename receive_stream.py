@@ -7,7 +7,7 @@ from scapy.all import *
 from coding_hdr import CodingHdrR
 
 bind_layers(Ether, CodingHdrR, type=0x1234)
-total= 0
+total = 0
 a = 0
 b = 0
 x = 0

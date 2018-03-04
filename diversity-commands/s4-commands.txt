@@ -1,3 +1,2 @@
-table_set_default switch_stats add_switch_stats 4
-
-table_add table_mac_fwd mac_forward_from_ingress 00:00:00:00:05:02 => 2
+table_add table_ingress_forward uni_cast 00:00:00:00:05:02 => 2
+table_add table_egress_forward forward_egress_processing_uni_cast 00:00:00:00:05:02 0 => 4 3

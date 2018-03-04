@@ -17,8 +17,11 @@
  * Version is currently 0.1 (0x01)
  */
 
-#include <core.p4>
-#include <v1model.p4>
+//#include <core.p4>
+//#include <v1model.p4>
+
+#include "/usr/local/share/p4c/p4include/core.p4"
+#include "/usr/local/share/p4c/p4include/v1model.p4"
 
 /*
  * Define the headers the program will recognize
@@ -120,11 +123,16 @@ struct decoding_metadata_t {
     bit<8>  is_clone;
 }
 
+struct forwarding_metadata_t {
+    bit<8>  is_bi_cast;
+}
+
 struct metadata {
     parser_metadata_t       parser_metadata;
     intrinsic_metadata_t    intrinsic_metadata;
     coding_metadata_t       coding_metadata;
     decoding_metadata_t     decoding_metadata;
+    forwarding_metadata_t   forwarding_metadata;
 }
 
 
@@ -225,8 +233,17 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
-    action mac_forward_from_ingress(bit<9> egress_port) {
+    action uni_cast(bit<9> egress_port) {
         standard_metadata.egress_spec = egress_port;
+    }
+
+    action bi_cast(bit<9> egress_port_1)
+    {
+        meta.forwarding_metadata.is_bi_cast = 1;
+        standard_metadata.clone_spec = 451;
+        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.forwarding_metadata, standard_metadata});
+
+        uni_cast(egress_port_1);
     }
 
     action copy_forward (bit<9> egress_port, bit<8> packet_contents) {
@@ -247,7 +264,7 @@ control MyIngress(inout headers hdr,
                 meta.coding_metadata.per_batch_input_packet_num: exact;
               }
 
-        actions = {_nop; copy_forward; copy_forward_trigger;}
+        actions = {_nop; copy_forward; copy_forward_trigger; }
         size = 10;
         default_action = _nop;
     }
@@ -280,12 +297,12 @@ control MyIngress(inout headers hdr,
         default_action = _nop;
     }
 
-    table table_mac_fwd {
+    table table_ingress_forward {
         key = {
                 hdr.ethernet.dstAddr: exact;
               }
 
-        actions = {_nop; mac_forward_from_ingress;}
+        actions = {_nop; uni_cast; bi_cast;}
         size = 10;
         default_action = _nop;
     }
@@ -318,10 +335,7 @@ control MyIngress(inout headers hdr,
 
             //Logic for forwarding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
-                //Signal the next switch to decode this packet
-                hdr.coding.packet_todo = CODING_PACKET_TO_DECODE;
-
-                table_mac_fwd.apply();
+                table_ingress_forward.apply();
             }
 
             //Logic for decoding
@@ -356,7 +370,7 @@ control MyIngress(inout headers hdr,
 
                     // Update here
                     reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                    table_mac_fwd.apply();
+                    table_ingress_forward.apply();
                 }
                 else
                 if (meta.decoding_metadata.is_clone == 0)
@@ -404,7 +418,7 @@ control MyIngress(inout headers hdr,
                         // If the packet is A or B
                         if (hdr.coding.packet_contents == CODING_A || hdr.coding.packet_contents == CODING_B) 
                         {
-                            // If XOR was already received, then clone/deocde and send this
+                            // If XOR was already received, then clone/decode and send this
                             if (xor_received_per_index == 1)
                             {
                                 //Clone this packet and send it along
@@ -414,14 +428,14 @@ control MyIngress(inout headers hdr,
 
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_mac_fwd.apply();
+                                table_ingress_forward.apply();
                                 }
                             else
                             if (xor_received_per_index == 0)
                             {
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_mac_fwd.apply();
+                                table_ingress_forward.apply();
  
                             }
                         }
@@ -453,7 +467,7 @@ control MyIngress(inout headers hdr,
                                 }
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_mac_fwd.apply();
+                                table_ingress_forward.apply();
      
                             } 
                             else 
@@ -485,6 +499,9 @@ control MyIngress(inout headers hdr,
 control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
+
+    action _nop () {
+    }
 
     action add_switch_stats(switchID_t swid) { 
         hdr.stats.num_switch_stats = hdr.stats.num_switch_stats + 1;
@@ -535,6 +552,27 @@ control MyEgress(inout headers hdr,
         size = 10;
     }
 
+    action forward_egress_processing_uni_cast(switchID_t swid, bit<8> next_packet_todo) {
+        hdr.coding.packet_todo = next_packet_todo;
+        add_switch_stats(swid);
+    }
+
+    action forward_egress_processing_bi_cast(switchID_t swid, bit<8> next_packet_todo) {
+        hdr.coding.packet_todo = next_packet_todo;
+        add_switch_stats(swid);
+    }
+
+    table table_egress_forward {
+        key = {
+                hdr.ethernet.dstAddr: exact;
+                meta.forwarding_metadata.is_bi_cast: exact;
+              }
+
+        actions = {_nop; forward_egress_processing_uni_cast; forward_egress_processing_bi_cast;}
+        size = 10;
+        default_action = _nop;
+    }
+
     apply {
         if (hdr.coding.isValid()) {
         
@@ -565,7 +603,7 @@ control MyEgress(inout headers hdr,
 
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
-                switch_stats.apply();
+                table_egress_forward.apply();
             }
 
             // Logic for decoding

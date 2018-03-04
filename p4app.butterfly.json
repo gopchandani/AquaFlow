@@ -7,29 +7,39 @@
           "cli": true,
           "pcap_dump": true,
           "bmv2_log": true,
-          "links": [["h1", "s1"], ["s1", "s2", "1ms"], ["s1", "s3", "10ms"], ["s1", "s4", "10ms"],
-                    ["h2", "s5"], ["s2", "s5"], ["s3", "s5"], ["s4", "s5"]],
+          "links": [["h1", "s1"], ["h2", "s6"], ["h3", "s7"],
+            ["s1", "s2"], ["s1", "s3"], ["s2", "s4"], ["s3", "s4"], ["s4", "s5"],
+            ["s2", "s6"], ["s3", "s7"], ["s5", "s6"], ["s5", "s7"]],
+
           "hosts": {
             "h1": {
             },
             "h2": {
+            },
+            "h3": {
             }
           },
           "switches": {
               "s1": {
-                  "entries": "s1-commands.txt"
+                  "entries": "butterfly-commands/s1-commands.txt"
               },
               "s2": {
-                  "entries": "s2-commands.txt"
+                  "entries": "butterfly-commands/s2-commands.txt"
               },
               "s3": {
-                  "entries": "s3-commands.txt"
+                  "entries": "butterfly-commands/s3-commands.txt"
               },
               "s4": {
-                  "entries": "s4-commands.txt"
+                  "entries": "butterfly-commands/s4-commands.txt"
               },
               "s5": {
-                  "entries": "s5-commands.txt"
+                  "entries": "butterfly-commands/s5-commands.txt"
+              },
+              "s6": {
+                  "entries": "butterfly-commands/s6-commands.txt"
+              },
+              "s7": {
+                  "entries": "butterfly-commands/s7-commands.txt"
               }
           }
        }

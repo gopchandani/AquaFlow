@@ -1,3 +1,4 @@
-# diversity_code
-An implementation of the diversity code on network devices using P4.
+# AquaFlow
+
+A framework to implement network coding using P4 devices.
 

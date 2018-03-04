@@ -4,6 +4,6 @@ table_add table_ingress_forward bi_cast 01:0C:CD:01:00:00 => 2
 mirroring_add 451 3
 
 table_add table_egress_forward forward_egress_processing_bi_cast 01:0C:CD:01:00:00 0 => 5 3
-table_add table_egress_forward forward_egress_processing_bi_cast 01:0C:CD:01:00:00 1 => 5 1
+table_add table_egress_forward forward_egress_processing_bi_cast 01:0C:CD:01:00:00 1 => 5 3
 
 

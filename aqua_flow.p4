@@ -125,6 +125,8 @@ struct decoding_metadata_t {
 
 struct forwarding_metadata_t {
     bit<8>  is_bi_cast;
+    bit<8>  bi_cast_to_use;
+    bit<8>  bi_cast_xor;
 }
 
 struct metadata {
@@ -237,13 +239,24 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
-    action bi_cast(bit<9> egress_port_1)
+    action bi_cast(bit<9> egress_port_1, bit<8> next_packet_todo_1, bit<8> next_packet_todo_2)
     {
         meta.forwarding_metadata.is_bi_cast = 1;
+        meta.forwarding_metadata.bi_cast_to_use = next_packet_todo_1;
+        meta.forwarding_metadata.bi_cast_xor = next_packet_todo_1 ^ next_packet_todo_2;
+
         standard_metadata.clone_spec = 451;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.forwarding_metadata, standard_metadata});
 
         uni_cast(egress_port_1);
+    }
+
+    action copy () {
+        reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
+    }
+
+    action copy_trigger () {
+        reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
     }
 
     action copy_forward (bit<9> egress_port, bit<8> packet_contents) {
@@ -264,7 +277,7 @@ control MyIngress(inout headers hdr,
                 meta.coding_metadata.per_batch_input_packet_num: exact;
               }
 
-        actions = {_nop; copy_forward; copy_forward_trigger; }
+        actions = {_nop; copy; copy_trigger; copy_forward; copy_forward_trigger; }
         size = 10;
         default_action = _nop;
     }
@@ -327,6 +340,10 @@ control MyIngress(inout headers hdr,
                 switch(table_input_splitting.apply().action_run)
                 {
                     copy_forward_trigger:
+                    {
+                        table_ingress_code.apply();
+                    }
+                    copy_trigger:
                     {
                         table_ingress_code.apply();
                     }
@@ -557,8 +574,10 @@ control MyEgress(inout headers hdr,
         add_switch_stats(swid);
     }
 
-    action forward_egress_processing_bi_cast(switchID_t swid, bit<8> next_packet_todo) {
-        hdr.coding.packet_todo = next_packet_todo;
+    action forward_egress_processing_bi_cast(switchID_t swid) {
+        hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_to_use;
+        meta.forwarding_metadata.bi_cast_to_use = meta.forwarding_metadata.bi_cast_xor ^ hdr.coding.packet_todo;
+
         add_switch_stats(swid);
     }
 

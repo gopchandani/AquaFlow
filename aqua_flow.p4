@@ -125,8 +125,9 @@ struct decoding_metadata_t {
 
 struct forwarding_metadata_t {
     bit<8>  is_bi_cast;
-    bit<8>  bi_cast_to_use;
-    bit<8>  bi_cast_xor;
+    bit<8>  bi_cast_todo_for_orig;
+    bit<8>  bi_cast_todo_for_clone;
+    bit<32> bi_cast_instance_num;
 }
 
 struct metadata {
@@ -239,16 +240,16 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
-    action bi_cast(bit<9> egress_port_1, bit<8> next_packet_todo_1, bit<8> next_packet_todo_2)
+    action bi_cast(bit<9> egress_port_for_orig, bit<8> next_packet_todo_for_orig, bit<8> next_packet_todo_for_clone)
     {
         meta.forwarding_metadata.is_bi_cast = 1;
-        meta.forwarding_metadata.bi_cast_to_use = next_packet_todo_1;
-        meta.forwarding_metadata.bi_cast_xor = next_packet_todo_1 ^ next_packet_todo_2;
+        meta.forwarding_metadata.bi_cast_todo_for_orig = next_packet_todo_for_orig;
+        meta.forwarding_metadata.bi_cast_todo_for_clone = next_packet_todo_for_clone;
 
         standard_metadata.clone_spec = 451;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.forwarding_metadata, standard_metadata});
 
-        uni_cast(egress_port_1);
+        uni_cast(egress_port_for_orig);
     }
 
     action copy () {
@@ -519,6 +520,9 @@ control MyEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
+    register<bit<32>>(1) reg_num_bi_cast_forwarding_input_pkts;
+    bit<32> num_bi_cast_forwarding_input_pkts;
+
     action _nop () {
     }
 
@@ -576,9 +580,14 @@ control MyEgress(inout headers hdr,
         add_switch_stats(swid);
     }
 
-    action forward_egress_processing_bi_cast(switchID_t swid) {
-        hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_to_use;
-        meta.forwarding_metadata.bi_cast_to_use = meta.forwarding_metadata.bi_cast_xor ^ hdr.coding.packet_todo;
+    action forward_egress_processing_bi_cast_for_orig(switchID_t swid) {
+        hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_todo_for_orig;
+
+        add_switch_stats(swid);
+    }
+
+    action forward_egress_processing_bi_cast_for_clone(switchID_t swid) {
+        hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_todo_for_clone;
 
         add_switch_stats(swid);
     }
@@ -587,9 +596,11 @@ control MyEgress(inout headers hdr,
         key = {
                 hdr.ethernet.dstAddr: exact;
                 meta.forwarding_metadata.is_bi_cast: exact;
+                meta.forwarding_metadata.bi_cast_instance_num: exact;
               }
 
-        actions = {_nop; forward_egress_processing_uni_cast; forward_egress_processing_bi_cast;}
+        actions = {_nop; forward_egress_processing_uni_cast; forward_egress_processing_bi_cast_for_orig;
+                    forward_egress_processing_bi_cast_for_clone;}
         size = 10;
         default_action = _nop;
     }
@@ -624,15 +635,17 @@ control MyEgress(inout headers hdr,
 
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
-                table_egress_forward.apply();
 
-                if (meta.forwarding_metadata.bi_cast_to_use == CODING_PACKET_TO_CODE) {
-                    switch_stats.apply();
-                }
-                else
-                if (meta.forwarding_metadata.bi_cast_to_use == CODING_PACKET_TO_DECODE)
-                {
-                    switch_stats.apply();
+                if (meta.forwarding_metadata.is_bi_cast == 0) {
+                    table_egress_forward.apply();
+                } else
+                if (meta.forwarding_metadata.is_bi_cast == 1) {
+
+                    reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
+                    reg_num_bi_cast_forwarding_input_pkts.write(0, num_bi_cast_forwarding_input_pkts + 1);
+                    meta.forwarding_metadata.bi_cast_instance_num = num_bi_cast_forwarding_input_pkts % 2;
+
+                    table_egress_forward.apply();
                 }
 
             }

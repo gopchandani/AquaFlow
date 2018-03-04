@@ -13,15 +13,19 @@ def main():
 
     iface = 'h1-eth0'
     num_pkts = int(sys.argv[1])
+    dst_mac = None
 
-    pktA = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingHdr(num_switch_stats=0,
-                                                                   packet_contents="A",
-                                                                   packet_payload="A" * (payload_size/8))
+    if sys.argv[2] == "butterfly":
+        dst_mac = "01:0C:CD:01:00:00"
+    elif sys.argv[2] == "diversity":
+        dst_mac = "00:00:00:00:05:02"
+
+    pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdr(num_switch_stats=0,
+                                                       packet_contents="A", packet_payload="A" * (payload_size/8))
     pktA = pktA/' '
 
-    pktB = Ether(dst='00:00:00:00:05:02', type=0x1234) / CodingHdr(num_switch_stats=0,
-                                                                   packet_contents="B",
-                                                                   packet_payload="B" * (payload_size/8))
+    pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdr(num_switch_stats=0,
+                                                       packet_contents="B", packet_payload="B" * (payload_size/8))
     pktB = pktB/' '
 
     for i in range(num_pkts/2):

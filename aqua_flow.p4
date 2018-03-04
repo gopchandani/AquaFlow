@@ -229,16 +229,16 @@ control MyIngress(inout headers hdr,
         standard_metadata.egress_spec = egress_port;
     }
 
-    action copy_forward (bit<9> egress_port) {
+    action copy_forward (bit<9> egress_port, bit<8> packet_contents) {
 
         reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
-        send_from_ingress(egress_port, CODING_A);
+        send_from_ingress(egress_port, packet_contents);
     }
 
-    action copy_forward_trigger (bit<9> egress_port) {
+    action copy_forward_trigger (bit<9> egress_port, bit<8> packet_contents) {
 
         reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
-        send_from_ingress(egress_port, CODING_B);
+        send_from_ingress(egress_port, packet_contents);
     }
 
     table table_coding_input {

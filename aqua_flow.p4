@@ -625,6 +625,16 @@ control MyEgress(inout headers hdr,
             // Logic to forward
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
                 table_egress_forward.apply();
+
+                if (meta.forwarding_metadata.bi_cast_to_use == CODING_PACKET_TO_CODE) {
+                    switch_stats.apply();
+                }
+                else
+                if (meta.forwarding_metadata.bi_cast_to_use == CODING_PACKET_TO_DECODE)
+                {
+                    switch_stats.apply();
+                }
+
             }
 
             // Logic for decoding

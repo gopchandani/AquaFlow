@@ -253,10 +253,12 @@ control MyIngress(inout headers hdr,
 
     action copy () {
         reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
+        mark_to_drop();
     }
 
     action copy_trigger () {
         reg_coding_payload_buffer.write(meta.coding_metadata.per_batch_input_packet_num, hdr.coding.packet_payload);
+        mark_to_drop();
     }
 
     action copy_forward (bit<9> egress_port, bit<8> packet_contents) {

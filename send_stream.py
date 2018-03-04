@@ -1,18 +1,10 @@
 #!/usr/bin/env python
 
-import argparse
 import sys
-import socket
-import random
-import struct
-import re
-import random
-import string
-import readline
 
 from scapy.all import bind_layers
 from scapy.all import Ether
-from scapy.all import sendp, sniff, srp1
+from scapy.all import sendp
 from coding_hdr import CodingHdr, payload_size
 bind_layers(Ether, CodingHdr, type=0x1234)
 

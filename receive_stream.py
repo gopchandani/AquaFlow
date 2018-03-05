@@ -57,6 +57,7 @@ class Coding_swid_hdr(Packet):
     def extract_padding(self, p):
         return "", p
 
+
 class CodingHdrR(Packet):
     global payload_size
     fields_desc = [ 

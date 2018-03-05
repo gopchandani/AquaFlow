@@ -14,13 +14,14 @@ AquaFlow_dir = os.path.dirname(os.path.realpath(__file__))
 
 parser = argparse.ArgumentParser(description='Coding experiment')
 parser.add_argument('--type', dest="type", help='exp type', type=str, action="store", default="diversity")
+parser.add_argument('--experiment_data_dir', dest="experiment_data_dir", help='Location of experiments data', type=str, action="store")
 
 args = parser.parse_args()
 
 assert(args.type == "diversity" or args.type == "butterfly")
 
 
-experiment_dir = AquaFlow_dir + "/experiment/experiment_200_pkts"
+experiment_dir = AquaFlow_dir + args.experiment_data_dir
 
 payloads = [128, 256, 512, 1024, 2048, 4096]
 differentials = [-5, -1, 0, 1, 5]

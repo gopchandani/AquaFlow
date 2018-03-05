@@ -231,7 +231,13 @@ control MyIngress(inout headers hdr,
 
     action send_from_ingress(bit<9> egress_port, bit<8> packet_contents) {
         reg_num_coding_input_pkts.read(num_coding_input_pkts, 0);
-        hdr.coding.coded_packets_batch_num = num_coding_input_pkts / CODING_INPUT_BATCH_SIZE;;
+        hdr.coding.coded_packets_batch_num = (num_coding_input_pkts + 1) / CODING_INPUT_BATCH_SIZE;
+        hdr.coding.packet_contents = packet_contents;
+        standard_metadata.egress_spec = egress_port;
+    }
+
+    action send_from_ingress_no_batch(bit<9> egress_port, bit<8> packet_contents) {
+        reg_num_coding_input_pkts.read(num_coding_input_pkts, 0);
         hdr.coding.packet_contents = packet_contents;
         standard_metadata.egress_spec = egress_port;
     }
@@ -289,9 +295,17 @@ control MyIngress(inout headers hdr,
         reg_coding_payload_buffer.read(operand2, 1);
         hdr.coding.packet_payload = operand1 ^ operand2;
         send_from_ingress(egress_port, CODING_X);
-
         meta.coding_metadata.do_clone = continue_cloning;
+    }
 
+   action code_forward_passive (bit<9> egress_port, bit<1> continue_cloning) {
+        payload_t operand1;
+        payload_t operand2;
+        reg_coding_payload_buffer.read(operand1, 0);
+        reg_coding_payload_buffer.read(operand2, 1);
+        hdr.coding.packet_payload = operand1 ^ operand2;
+        send_from_ingress_no_batch(egress_port, CODING_X);
+        meta.coding_metadata.do_clone = continue_cloning;
     }
 
     action cloning_start () {
@@ -305,7 +319,7 @@ control MyIngress(inout headers hdr,
                 meta.coding_metadata.do_clone: exact;
               }
 
-        actions = {_nop; cloning_start; code_forward;}
+        actions = {_nop; cloning_start; code_forward; code_forward_passive;}
         size = 10;
         default_action = _nop;
     }
@@ -372,7 +386,7 @@ control MyIngress(inout headers hdr,
                 //Get the current occupant batch_num of this index
                 reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, this_pkt_index);
 
-                //If it is zero, then set this current pkt as the occupant
+                //If it is zero, then set this current pkt as the occupant -- This is the reason why you init these things from 1
                 if (rcv_batch_num_per_index == 0)
                 {
                     reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);

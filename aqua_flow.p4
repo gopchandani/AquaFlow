@@ -246,9 +246,6 @@ control MyIngress(inout headers hdr,
         meta.forwarding_metadata.bi_cast_todo_for_orig = next_packet_todo_for_orig;
         meta.forwarding_metadata.bi_cast_todo_for_clone = next_packet_todo_for_clone;
 
-        standard_metadata.clone_spec = 451;
-        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.forwarding_metadata, standard_metadata});
-
         uni_cast(egress_port_for_orig);
     }
 
@@ -583,10 +580,15 @@ control MyEgress(inout headers hdr,
     action forward_egress_processing_bi_cast_for_orig(switchID_t swid) {
         hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_todo_for_orig;
 
+        standard_metadata.clone_spec = 451;
+        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.forwarding_metadata, standard_metadata});
+
         add_switch_stats(swid);
     }
 
     action forward_egress_processing_bi_cast_for_clone(switchID_t swid) {
+        remove_switch_stats();
+
         hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_todo_for_clone;
 
         add_switch_stats(swid);
@@ -607,54 +609,60 @@ control MyEgress(inout headers hdr,
 
     apply {
         if (hdr.coding.isValid()) {
+
+            if (meta.forwarding_metadata.is_bi_cast == 0) {
         
-            // Logic for coding has three type of packets...
-            
-            // These are packets that just came from ingress and will be cloned and sent out...
-            if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DO_CLONE)
-            {
-                // Ensure that the outgoing packet is correctly forwarded by the next hop
-                hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
-                table_egress_code.apply();
-            }
-            
-            // These are packets that are being recirculated
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD && meta.coding_metadata.do_clone == DO_CLONE)
-            {
-                // Switch these back to coding
-                hdr.coding.packet_todo = CODING_PACKET_TO_CODE;
-                table_egress_code.apply();
-            }
-            // These are packets after the recirculated packets return from ingress
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DONT_CLONE)
-            {
-                // Ensure that the outgoing packet is correctly forwarded by the next hop
-                hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
-                switch_stats.apply();
-            }
+                // Logic for coding has three type of packets...
 
-            // Logic to forward
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
+                // These are packets that just came from ingress and will be cloned and sent out...
+                if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DO_CLONE)
+                {
+                    // Ensure that the outgoing packet is correctly forwarded by the next hop
+                    hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+                    table_egress_code.apply();
+                }
 
-                if (meta.forwarding_metadata.is_bi_cast == 0) {
-                    table_egress_forward.apply();
-                } else
-                if (meta.forwarding_metadata.is_bi_cast == 1) {
+                // These are packets that are being recirculated
+                else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD && meta.coding_metadata.do_clone == DO_CLONE)
+                {
+                    // Switch these back to coding
+                    hdr.coding.packet_todo = CODING_PACKET_TO_CODE;
+                    table_egress_code.apply();
+                }
+                // These are packets after the recirculated packets return from ingress
+                else if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DONT_CLONE)
+                {
+                    // Ensure that the outgoing packet is correctly forwarded by the next hop
+                    hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+                    switch_stats.apply();
+                }
 
-                    reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
-                    reg_num_bi_cast_forwarding_input_pkts.write(0, num_bi_cast_forwarding_input_pkts + 1);
-                    meta.forwarding_metadata.bi_cast_instance_num = num_bi_cast_forwarding_input_pkts % 2;
-
+                // Logic to forward
+                else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
                     table_egress_forward.apply();
                 }
 
-            }
+                // Logic for decoding
+                else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
+                    switch_stats.apply();
+                }
 
-            // Logic for decoding
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
-                switch_stats.apply();
+            } else if (meta.forwarding_metadata.is_bi_cast == 1) {
+
+                reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
+                reg_num_bi_cast_forwarding_input_pkts.write(0, num_bi_cast_forwarding_input_pkts + 1);
+
+                meta.forwarding_metadata.bi_cast_instance_num = num_bi_cast_forwarding_input_pkts % 2;
+
+                table_egress_forward.apply();
+
+                if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
+                    reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
+                } else
+                if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
+                    reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
+                }
             }
-    
         }
         else {
             mark_to_drop();

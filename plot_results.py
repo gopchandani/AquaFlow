@@ -20,7 +20,7 @@ args = parser.parse_args()
 assert(args.type == "diversity" or args.type == "butterfly")
 
 
-experiment_dir = AquaFlow_dir + "/experiment"
+experiment_dir = AquaFlow_dir + "/experiment/experiment_200_pkts"
 
 payloads = [128, 256, 512, 1024, 2048, 4096]
 differentials = [-5, -1, 0, 1, 5]

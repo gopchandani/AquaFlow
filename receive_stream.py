@@ -46,12 +46,6 @@ rcvd_pkt_metrics_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
                          }
 
 
-class Coding_switch_stats(Packet):
-    fields_desc = [ 
-                    XByteField("num_switch_stats", 0x01),
-                  ]
-
-
 class Coding_swid_hdr(Packet):
     fields_desc = [ 
                     IntField("swid", 0),
@@ -63,17 +57,6 @@ class Coding_swid_hdr(Packet):
     def extract_padding(self, p):
         return "", p
 
-class Coding_rem_hdr(Packet):
-                  fields_desc = [ 
-                    StrFixedLenField("P", "P", length=1),
-                    StrFixedLenField("Four", "4", length=1),
-                    XByteField("version", 0x01),
-                    XByteField("packet_todo", 0x01),
-                    StrFixedLenField("packet_contents", ' ', length=1),
-                    IntField("coded_packets_batch_num", 0),
-                    StrFixedLenField("packet_payload", ' '*(payload_size/8), length=payload_size/8)]
-                  
-
 class CodingHdrR(Packet):
     global payload_size
     fields_desc = [ 
@@ -82,30 +65,6 @@ class CodingHdrR(Packet):
                                    [],
                                    Coding_swid_hdr,
                                    count_from=lambda pkt:(pkt.num_switch_stats*1)) ,
-                    StrFixedLenField("P", "P", length=1),
-                    StrFixedLenField("Four", "4", length=1),
-                    XByteField("version", 0x01),
-                    XByteField("packet_todo", 0x01),
-                    StrFixedLenField("packet_contents", ' ', length=1),
-                    IntField("coded_packets_batch_num", 0),
-                    StrFixedLenField("packet_payload", ' '*(payload_size/8), length=payload_size/8)]
-
-class CodingHdrR_new(Packet):
-    global payload_size
-    fields_desc = [ 
-                    XByteField("num_switch_stats", 0x01),
-                    IntField("swid1", 0),
-                    XStrFixedLenField("igt1", "      ", length=6),
-                    XStrFixedLenField("enqt1", "      ", length=4),
-                    XStrFixedLenField("delt1", "      ", length=4),
-                    IntField("swid2", 0),
-                    XStrFixedLenField("igt2", "      ", length=6),
-                    XStrFixedLenField("enqt2", "      ", length=4),
-                    XStrFixedLenField("delt2", "      ", length=4),
-                    IntField("swid3", 0),
-                    XStrFixedLenField("igt3", "      ", length=6),
-                    XStrFixedLenField("enqt3", "      ", length=4),
-                    XStrFixedLenField("delt3", "      ", length=4),
                     StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),

@@ -194,10 +194,13 @@ def main():
         h = net.get(host_name)
         stdout_filename = os.path.join(args.log_dir, h.name + '.stdout')
         stdout_files[h.name] = open(stdout_filename, 'w')
-        cmd = formatCmd(host['cmd'])
+        #cmd = formatCmd(host['cmd'])
+        cmd = host['cmd']
         print h.name, cmd
-        p = h.popen(cmd, stdout=stdout_files[h.name], shell=True, preexec_fn=os.setpgrp)
+        
         if 'startup_sleep' in host: sleep(host['startup_sleep'])
+
+        p = h.popen(cmd, stdout=stdout_files[h.name], shell=True, preexec_fn=os.setpgrp)
 
         if 'wait' in host and host['wait']:
             _wait_for_exit(p, host_name)

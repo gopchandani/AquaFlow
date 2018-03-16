@@ -17,8 +17,8 @@
  * Version is currently 0.1 (0x01)
  */
 
-#include <core.p4>
-#include <v1model.p4>
+#include "/usr/local/share/p4c/p4include/core.p4"
+#include "/usr/local/share/p4c/p4include/v1model.p4"
 
 /*
  * Define the headers the program will recognize
@@ -53,7 +53,7 @@ const bit<32> DECODING_BUFFER_SIZE = 128;
 
 const bit<32> CODING_INPUT_BATCH_SIZE = 2;
 
-typedef bit<1600> payload_t;
+typedef bit<4096> payload_t;
 
 header coding_hdr_t {
     bit<8>  p;

@@ -3,10 +3,9 @@ from scapy.all import FieldLenField, PacketListField
 
 from switch_stats_hdr import SwitchStatsHdr
 
-payload_size = 1600
 
 
-class CodingHdr(Packet):
+class CodingHdr(Packet, payload_size):
     fields_desc = [ 
                     XByteField("num_switch_stats", 0x01),
                     StrFixedLenField("P", "P", length=1),
@@ -18,7 +17,7 @@ class CodingHdr(Packet):
                     StrFixedLenField("packet_payload", ' '*(payload_size/8), length=payload_size/8)]
 
 
-class CodingHdrR(Packet):
+class CodingHdrR(Packet, payload_size):
     fields_desc = [ 
                     XByteField("num_switch_stats", 0x01),
                     IntField("swid1", 0),

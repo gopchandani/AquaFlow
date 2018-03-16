@@ -1,0 +1,41 @@
+{
+    "program": "aqua_flow.p4",
+    "language": "p4-16",
+    "targets": {
+      "multiswitch": {
+          "auto-control-plane": true,
+          "cli": false,
+          "pcap_dump": true,
+          "bmv2_log": true,
+          "links": [["h1", "s1", "@d1@ms"], ["s1", "s2", "@d1@ms"], ["s1", "s3", "@d1@ms"], ["s1", "s4", "@d2@ms"],
+                    ["h2", "s5", "@d1@ms"], ["s2", "s5", "@d1@ms"], ["s3", "s5", "@d1@ms"], ["s4", "s5", "@d1@ms"]],
+          "hosts": {
+            "h1": {
+                "cmd": "sudo python @AQUA_FLOW_DIR@/send_stream.py --npackets @N_PACKETS@ --type diversity --payload @PAYLOAD_SIZE@",
+                "wait": false
+            },
+            "h2": {
+                "cmd": "sudo python @AQUA_FLOW_DIR@/receive_stream.py --iface @IFACE@ --npackets @N_PACKETS@ --payload @PAYLOAD_SIZE@ --log_file @LOG_FILE@",
+                "wait": true
+            }
+          },
+          "switches": {
+              "s1": {
+                  "entries": "diversity-commands/s1-commands.txt"
+              },
+              "s2": {
+                  "entries": "diversity-commands/s2-commands.txt"
+              },
+              "s3": {
+                  "entries": "diversity-commands/s3-commands.txt"
+              },
+              "s4": {
+                  "entries": "diversity-commands/s4-commands.txt"
+              },
+              "s5": {
+                  "entries": "diversity-commands/s5-commands.txt"
+              }
+          }
+       }
+    }
+}

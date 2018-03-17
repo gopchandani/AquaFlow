@@ -20,7 +20,7 @@ parser.add_argument('--payload', dest="payload", help='recv payload size', actio
 args = parser.parse_args()
 
 
-total = 0
+packet_num = 0
 a = 0
 b = 0
 x = 0
@@ -63,18 +63,15 @@ class CodingHdrR(Packet):
                     StrFixedLenField("packet_payload", ' ' * (payload_size/8), length=payload_size/8)]
 
 
-
 rcvd_pkt_metrics_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
-                         'B': {'coding': [], 'forwarding': [], 'decoding': []}
-                         }
-
+                         'B': {'coding': [], 'forwarding': [], 'decoding': []}}
 
 bind_layers(Ether, CodingHdrR, type=0x1234)
 
 
 def collect_stats(pkt):
 
-    global total, a, b, x, a_max_batch_num, b_max_batch_num, x_max_batch_num
+    global packet_num, a, b, x, a_max_batch_num, b_max_batch_num, x_max_batch_num
     global x_with_a, x_with_b, x_with_x
     global rcvd_pkt_metrics_dict
 
@@ -82,14 +79,21 @@ def collect_stats(pkt):
     forwarding_times = []
     decoding_times = []
 
-    total += 1
-
+    packet_num += 1
     num_switch_stats = int(pkt[CodingHdrR].num_switch_stats)
 
-    for i in xrange(0, num_switch_stats) :
-        if i == 0 :
+    # If this is the first packet, get the first switch's igt
+    if packet_num == 1:
+        rcvd_pkt_metrics_dict['first_switch_igt'] = int(pkt[CodingHdrR].swtraces[0].igt.encode('hex'), 16)
+
+    # If this is the last packet, get the last switch's enqt
+    if packet_num == int(args.npackets):
+        rcvd_pkt_metrics_dict['last_switch_enqt'] = int(pkt[CodingHdrR].swtraces[num_switch_stats - 1].enqt.encode('hex'), 16)
+
+    for i in xrange(0, num_switch_stats):
+        if i == 0:
             coding_times.append(int(pkt[CodingHdrR].swtraces[i].enqt.encode('hex'), 16) - int(pkt[CodingHdrR].swtraces[i].igt.encode('hex'), 16))
-        elif i == num_switch_stats - 1 :
+        elif i == num_switch_stats - 1:
             decoding_times.append(int(pkt[CodingHdrR].swtraces[i].enqt.encode('hex'), 16) - int(pkt[CodingHdrR].swtraces[i].igt.encode('hex'), 16))
         else:    
             forwarding_times.append(int(pkt[CodingHdrR].swtraces[i].enqt.encode('hex'), 16) - int(pkt[CodingHdrR].swtraces[i].igt.encode('hex'), 16))
@@ -123,31 +127,37 @@ def collect_stats(pkt):
 
 def main():
 
-    n_recv_packets = int(args.npackets)
     iface = args.iface
     log_file = args.log_file
 
     try:
-        sniff(iface=iface, filter="ether proto 0x1234", prn=collect_stats, count=n_recv_packets)
+        sniff(iface=iface, filter="ether proto 0x1234", prn=collect_stats, count=int(args.npackets))
     except:
         pass
-    
-    for payload in rcvd_pkt_metrics_dict:
-        rcvd_pkt_metrics_dict[payload]['coding_mean'] = np.mean(rcvd_pkt_metrics_dict[payload]['coding'])
-        rcvd_pkt_metrics_dict[payload]['coding_sd'] = np.std(rcvd_pkt_metrics_dict[payload]['coding'])
-        rcvd_pkt_metrics_dict[payload]['forwarding_mean'] = np.mean(rcvd_pkt_metrics_dict[payload]['forwarding'])
-        rcvd_pkt_metrics_dict[payload]['forwarding_sd'] = np.std(rcvd_pkt_metrics_dict[payload]['forwarding'])
-        rcvd_pkt_metrics_dict[payload]['decoding_mean'] = np.mean(rcvd_pkt_metrics_dict[payload]['decoding'])
-        rcvd_pkt_metrics_dict[payload]['decoding_sd'] = np.std(rcvd_pkt_metrics_dict[payload]['decoding'])
 
     print rcvd_pkt_metrics_dict
-    print "Total packets received:", total
+
+    for key in rcvd_pkt_metrics_dict:
+
+        if key == 'A' or key == 'B':
+            rcvd_pkt_metrics_dict[key]['coding_mean'] = np.mean(rcvd_pkt_metrics_dict[key]['coding'])
+            rcvd_pkt_metrics_dict[key]['coding_sd'] = np.std(rcvd_pkt_metrics_dict[key]['coding'])
+            rcvd_pkt_metrics_dict[key]['forwarding_mean'] = np.mean(rcvd_pkt_metrics_dict[key]['forwarding'])
+            rcvd_pkt_metrics_dict[key]['forwarding_sd'] = np.std(rcvd_pkt_metrics_dict[key]['forwarding'])
+            rcvd_pkt_metrics_dict[key]['decoding_mean'] = np.mean(rcvd_pkt_metrics_dict[key]['decoding'])
+            rcvd_pkt_metrics_dict[key]['decoding_sd'] = np.std(rcvd_pkt_metrics_dict[key]['decoding'])
+
+    print "Total packets received:", packet_num
     print "Total a packets:", a
     print "Total b pakcets:", b
     print "Total x packets:", x
     print "a_max_batch_num:", a_max_batch_num
     print "b_max_batch_num:", b_max_batch_num
     print "x_max_batch_num:", x_max_batch_num
+    print "first_switch_igt:", rcvd_pkt_metrics_dict['first_switch_igt']
+    print "last_switch_enqt:", rcvd_pkt_metrics_dict['last_switch_enqt']
+
+    print "Packet duration in network:", (rcvd_pkt_metrics_dict['last_switch_enqt']) - (rcvd_pkt_metrics_dict['first_switch_igt'])
 
     with open(log_file, 'w') as outfile:
         json.dump(rcvd_pkt_metrics_dict, outfile)

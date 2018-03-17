@@ -15,7 +15,8 @@ parser.add_argument('--npackets',dest="npackets", help='n_packets td send',
                     type=int, action="store", required=True)
 parser.add_argument('--type', dest="type", help='topology_name',
                     type=str, action="store", default="diversity")
-parser.add_argument('--payload', dest="payload", help='payload size', action="store", required=True)
+parser.add_argument('--payload', dest="payload", help='payload size',
+                    action="store", required=True)
 
 args = parser.parse_args()
 

@@ -2,6 +2,19 @@ import os
 import argparse
 
 
+def process_file_name(f_name):
+    new_f_name = ""
+
+    for i in xrange(0, len(f_name)):
+
+        if f_name[i] == "/":
+            new_f_name = new_f_name + "\\/"
+        else:
+            new_f_name = new_f_name + f_name[i]
+
+    return new_f_name
+
+
 def run_diversity_experiment(AquaFlow_dir, base_delay, differential, npackets, payload, iface):
 
     print differential
@@ -78,19 +91,6 @@ def run_butterfly_experiment(AquaFlow_dir, base_delay, iface, npackets, payload)
             + str(templates_dir) + "/p4app." + "butterfly" + ".json.template > " + dst_dir + "/p4app" + ".json"
 
     os.system(cmd_2)
-
-
-def process_file_name(f_name):
-    new_f_name = ""
-
-    for i in xrange(0, len(f_name)):
-
-        if f_name[i] == "/":
-            new_f_name = new_f_name + "\\/"
-        else:
-            new_f_name = new_f_name + f_name[i]
-
-    return new_f_name
 
 
 def main():

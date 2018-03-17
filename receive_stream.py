@@ -2,16 +2,11 @@
 
 import numpy as np
 import json
+import argparse
 
 from scapy.all import *
-#from coding_hdr import CodingHdrR
-import argparse
-from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField, ShortField
 from scapy.all import FieldLenField, PacketListField
-
-from switch_stats_hdr import SwitchStatsHdr
-
-
+from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField
 
 
 parser = argparse.ArgumentParser(description='Mininet demo')
@@ -25,9 +20,7 @@ parser.add_argument('--payload', dest="payload", help='recv payload size', actio
 args = parser.parse_args()
 
 
-
-
-total= 0
+total = 0
 a = 0
 b = 0
 x = 0
@@ -41,13 +34,8 @@ x_with_x = 0
 payload_size = int(args.payload)
 
 
-rcvd_pkt_metrics_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
-                         'B': {'coding': [], 'forwarding': [], 'decoding': []}
-                         }
-
-
-class Coding_swid_hdr(Packet):
-    fields_desc = [ 
+class SwitchStatsHdr(Packet):
+    fields_desc = [
                     IntField("swid", 0),
                     XStrFixedLenField("igt", "      ", length=6),
                     XStrFixedLenField("enqt", "    ", length=4),
@@ -60,19 +48,25 @@ class Coding_swid_hdr(Packet):
 
 class CodingHdrR(Packet):
     global payload_size
-    fields_desc = [ 
+    fields_desc = [
                     XByteField("num_switch_stats", 0x0),
                     PacketListField("swtraces",
-                                   [],
-                                   Coding_swid_hdr,
-                                   count_from=lambda pkt:(pkt.num_switch_stats*1)) ,
+                                    [],
+                                    SwitchStatsHdr,
+                                    count_from=lambda pkt:(pkt.num_switch_stats*1)),
                     StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),
                     XByteField("packet_todo", 0x01),
                     StrFixedLenField("packet_contents", ' ', length=1),
                     IntField("coded_packets_batch_num", 0),
-                    StrFixedLenField("packet_payload", ' '*(payload_size/8), length=payload_size/8)]
+                    StrFixedLenField("packet_payload", ' ' * (payload_size/8), length=payload_size/8)]
+
+
+
+rcvd_pkt_metrics_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
+                         'B': {'coding': [], 'forwarding': [], 'decoding': []}
+                         }
 
 
 bind_layers(Ether, CodingHdrR, type=0x1234)
@@ -84,26 +78,13 @@ def collect_stats(pkt):
     global x_with_a, x_with_b, x_with_x
     global rcvd_pkt_metrics_dict
 
-
     coding_times = []
     forwarding_times = []
     decoding_times = []
 
-
-    
     total += 1
 
     num_switch_stats = int(pkt[CodingHdrR].num_switch_stats)
-
-
-    """
-    print "num_switch_stats = ", num_switch_stats, len(pkt[CodingHdrR].swtraces[0])
-    print "Switch ids: ", pkt[CodingHdrR].swtraces[0].swid, pkt[CodingHdrR].swtraces[1].swid, pkt[CodingHdrR].swtraces[2].swid, "\n"  
-    print "Enqt: ", int(pkt[CodingHdrR].swtraces[0].enqt.encode('hex'),16), int(pkt[CodingHdrR].swtraces[1].enqt.encode('hex'),16), int(pkt[CodingHdrR].swtraces[2].enqt.encode('hex'), 16)
-    print "igt: ", int(pkt[CodingHdrR].swtraces[0].igt.encode('hex'),16), int(pkt[CodingHdrR].swtraces[1].igt.encode('hex'), 16), int(pkt[CodingHdrR].swtraces[2].igt.encode('hex'), 16)
-    print pkt[CodingHdrR].packet_contents, pkt[CodingHdrR].P, pkt[CodingHdrR].Four, pkt[CodingHdrR].version, pkt[CodingHdrR].packet_todo, pkt[CodingHdrR].packet_payload
-    """
-
 
     for i in xrange(0, num_switch_stats) :
         if i == 0 :
@@ -113,9 +94,6 @@ def collect_stats(pkt):
         else:    
             forwarding_times.append(int(pkt[CodingHdrR].swtraces[i].enqt.encode('hex'), 16) - int(pkt[CodingHdrR].swtraces[i].igt.encode('hex'), 16))
 
-
-
-    
     rcvd_pkt_metrics_dict[pkt[CodingHdrR].packet_payload[0]]['coding'].extend(coding_times)
     rcvd_pkt_metrics_dict[pkt[CodingHdrR].packet_payload[0]]['forwarding'].extend(forwarding_times)
     rcvd_pkt_metrics_dict[pkt[CodingHdrR].packet_payload[0]]['decoding'].extend(decoding_times)
@@ -142,7 +120,6 @@ def collect_stats(pkt):
         elif pkt[CodingHdrR].packet_payload[0] == 'X':
             x_with_x += 1
     
-
 
 def main():
 
@@ -177,22 +154,6 @@ def main():
 
     time.sleep(2)
     
-
-def print_data():
-    for filename in ['no_failure.json', 's1_s2_failure.json', 's1_s3_failure.json', 's1_s3_failure.json',]:
-        with open(filename, 'r') as infile:
-            print filename
-            rcvd_pkt_metrics_dict = json.load(infile)
-
-            for payload in ['A', 'B']:
-                print payload
-                print "Coding:", rcvd_pkt_metrics_dict[payload]['coding_mean'], \
-                    rcvd_pkt_metrics_dict[payload]['coding_sd']
-                print "Forwarding:", rcvd_pkt_metrics_dict[payload]['forwarding_mean'], \
-                    rcvd_pkt_metrics_dict[payload]['forwarding_sd']
-                print "Decoding:", rcvd_pkt_metrics_dict[payload]['decoding_mean'], \
-                    rcvd_pkt_metrics_dict[payload]['decoding_sd']
-
 
 if __name__ == '__main__':
     main()

@@ -1,20 +1,14 @@
 #!/usr/bin/env python
 
 import sys
+import time
+import argparse
 
 from scapy.all import bind_layers
 from scapy.all import Ether
 from scapy.all import sendp
-#from coding_hdr import CodingHdr
-import time
-import argparse
-from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField, ShortField
-from scapy.all import FieldLenField, PacketListField
 
-from switch_stats_hdr import SwitchStatsHdr
-
-
-
+from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField
 
 parser = argparse.ArgumentParser(description='send stream')
 parser.add_argument('--npackets',dest="npackets", help='n_packets td send',
@@ -26,14 +20,13 @@ parser.add_argument('--payload', dest="payload", help='payload size', action="st
 args = parser.parse_args()
 
 num_pkts = int(args.npackets)
-exp_type = args.type
+args.type = args.type
 payload_size = int(args.payload)
 
 
-
-
-class CodingHdr(Packet):
-    fields_desc = [ 
+class CodingHdrS(Packet):
+    global payload_size
+    fields_desc = [
                     XByteField("num_switch_stats", 0x01),
                     StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
@@ -43,7 +36,8 @@ class CodingHdr(Packet):
                     IntField("coded_packets_batch_num", 0),
                     StrFixedLenField("packet_payload", ' '*(payload_size/8), length=payload_size/8)]
 
-bind_layers(Ether, CodingHdr, type=0x1234)
+
+bind_layers(Ether, CodingHdrS, type=0x1234)
 
 
 def main():
@@ -52,24 +46,23 @@ def main():
     
     dst_mac = None
 
-    global payload_size, exp_type, num_pkts
+    global payload_size, args, num_pkts
 
     if payload_size <= 0 :
         payload_size = 1
 
-    if exp_type == "butterfly":
+    if args.type == "butterfly":
         dst_mac = "01:0C:CD:01:00:00"
-    elif exp_type == "diversity":
+    elif args.type == "diversity":
         dst_mac = "00:00:00:00:05:02"
     else:
         print "Incorrect experiment type"
         sys.exit(0)
 
-
-    pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdr(num_switch_stats=0, packet_contents='A', packet_payload="A" * (payload_size/8))
+    pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload="A" * (payload_size/8))
     pktA = pktA/' '
 
-    pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdr(num_switch_stats=0, packet_contents='B', packet_payload="B" * (payload_size/8))
+    pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload="B" * (payload_size/8))
     pktB = pktB/' '
 
     time.sleep(2)

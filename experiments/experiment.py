@@ -62,7 +62,7 @@ def run_diversity_experiment(AquaFlow_dir, base_delay, differential, npackets, p
     os.system("sudo chmod -R 777 " + str(AquaFlow_dir))
 
 
-def run_butterfly_experiment(AquaFlow_dir, base_delay, iface, npackets, payload):
+def run_butterfly_experiment(AquaFlow_dir, base_delay, iface1, iface2, npackets, payload):
 
     assert (payload >= 1)
 
@@ -83,7 +83,8 @@ def run_butterfly_experiment(AquaFlow_dir, base_delay, iface, npackets, payload)
 
     cmd_2 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) \
             + "/g; s/@AQUA_FLOW_DIR@/" + str(AquaFlow_dir_fmt) \
-            + "/g; s/@IFACE@/" + str(iface) \
+            + "/g; s/@IFACE1@/" + str(iface1) \
+            + "/g; s/@IFACE2@/" + str(iface2) \
             + "/g; s/@N_PACKETS@/" + str(npackets) \
             + "/g; s/@LOG_FILE@/" + str(log_file_fmt) \
             + "/g; s/@d1@/" + str(base_delay) \
@@ -98,15 +99,27 @@ def main():
     AquaFlow_dir = os.path.dirname(os.path.realpath(__file__)) + "/.."
     base_delay = 5
 
-    parser = argparse.ArgumentParser(description='Coding experiment')
+    parser = argparse.ArgumentParser(description='Script to run coding experiments')
     parser.add_argument('--differential', dest="differential", help='differential added to s1-s4 link',
-                        type=str, action="store", required=True)
+                        type=str, action="store")
+
     parser.add_argument('--payload', dest="payload", help='payload size',
                         type=str, action="store", required=True)
-    parser.add_argument('--npackets', dest="npackets", help='number of packets to send/receive', type=str, action="store",
-                        default="100")
-    parser.add_argument('--iface', dest="iface", help='iface for recv stream', type=str, action="store", default="h2-eth0")
-    parser.add_argument('--type', dest="type", help='exp type', type=str, action="store", default="diversity")
+
+    parser.add_argument('--npackets', dest="npackets", help='number of packets to send/receive',
+                        type=str, action="store", default="100")
+
+    parser.add_argument('--iface', dest="iface", help='iface for recv stream in diversity code',
+                        type=str, action="store", default="h2-eth0")
+
+    parser.add_argument('--iface1', dest="iface1", help='iface for recv stream in diversity code',
+                        type=str, action="store", default="h2-eth0")
+
+    parser.add_argument('--iface2', dest="iface2", help='iface for recv stream in diversity code',
+                        type=str, action="store", default="h3-eth0")
+
+    parser.add_argument('--type', dest="type", help='Experiment type',
+                        type=str, action="store", default="diversity")
 
     args = parser.parse_args()
 
@@ -116,7 +129,7 @@ def main():
 
     elif args.type == "butterfly":
         run_butterfly_experiment(AquaFlow_dir, base_delay,
-                                 args.iface, int(args.npackets), int(args.payload))
+                                 args.iface1, args.iface2, int(args.npackets), int(args.payload))
     else:
         print "Invalid experiment type:", args.type
 

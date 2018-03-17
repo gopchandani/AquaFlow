@@ -3,3 +3,8 @@ build/*
 *.pyc
 *.swp
 *.pcap
+*.json
+butterfly/aqua_flow.p4
+butterfly/p4app.json
+diversity/aqua_flow.p4
+diversity/p4app.json

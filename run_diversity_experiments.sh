@@ -18,8 +18,6 @@ while getopts "h?i:n:t:" opt; do
         ;;
     n)  n_packets=$OPTARG
         ;;
-    t)	exp_type=$OPTARG
-		;;
     esac
 done
 

@@ -7,15 +7,15 @@
           "cli": false,
           "pcap_dump": true,
           "bmv2_log": true,
-          "links": [["h1", "s1", "5ms"], ["s1", "s2", "5ms"], ["s1", "s3", "5ms"], ["s1", "s4", "10ms"],
+          "links": [["h1", "s1", "5ms"], ["s1", "s2", "5ms"], ["s1", "s3", "5ms"], ["s1", "s4", "5ms"],
                     ["h2", "s5", "5ms"], ["s2", "s5", "5ms"], ["s3", "s5", "5ms"], ["s4", "s5", "5ms"]],
           "hosts": {
             "h1": {
-                "cmd": "sudo python /home/rakesh/AquaFlow/send_stream.py --npackets 100 --type diversity --payload 4096",
+                "cmd": "sudo python /home/rakesh/AquaFlow/send_stream.py --npackets 100 --type diversity --payload 1024",
                 "wait": false
             },
             "h2": {
-                "cmd": "sudo python /home/rakesh/AquaFlow/receive_stream.py --iface h2-eth0 --npackets 100 --payload 4096 --log_file /home/rakesh/AquaFlow/experiment/diversity_payload_4096_differential_plus_5.json",
+                "cmd": "sudo python /home/rakesh/AquaFlow/receive_stream.py --iface h2-eth0 --npackets 100 --payload 1024 --log_file /home/rakesh/AquaFlow/experiment/diversity_payload_1024_differential_0.json",
                 "wait": true
             }
           },

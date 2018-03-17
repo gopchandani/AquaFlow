@@ -57,6 +57,7 @@ log_file = AquaFlow_dir + "/experiment/" + str(args.type)  + "_" + experiment_na
 
 AquaFlow_dir_fmt = process_file_name(AquaFlow_dir)
 log_file_fmt = process_file_name(log_file)
+experiment_dir = AquaFlow_dir + "/experiement"
 
 
 cmd_1 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) + "/g\' " + str(templates_dir) + "/aqua_flow_template.p4 > " + AquaFlow_dir + "/aqua_flow.p4"

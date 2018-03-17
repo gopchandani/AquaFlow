@@ -3,7 +3,7 @@ import os
 
 import argparse
 
-AquaFlow_dir = os.path.dirname(os.path.realpath(__file__))
+AquaFlow_dir = os.path.dirname(os.path.realpath(__file__)) + "/.."
 base_delay = 5
 
 
@@ -53,14 +53,14 @@ else:
 
 experiment_name = "payload_" + str(payload) + "_differential_" + str(differential_str) + ".json"
 
-log_file = AquaFlow_dir + "/experiment/" + str(args.type)  + "_" + experiment_name
+log_file = AquaFlow_dir + "/experiments/data/" + str(args.type)  + "_" + experiment_name
 
 AquaFlow_dir_fmt = process_file_name(AquaFlow_dir)
 log_file_fmt = process_file_name(log_file)
-experiment_dir = AquaFlow_dir + "/experiement"
+dst_dir = AquaFlow_dir + "/" + str(args.type)
 
 
-cmd_1 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) + "/g\' " + str(templates_dir) + "/aqua_flow_template.p4 > " + AquaFlow_dir + "/aqua_flow.p4"
+cmd_1 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) + "/g\' " + str(templates_dir) + "/aqua_flow_template.p4 > " + dst_dir + "/aqua_flow.p4"
 #print cmd_1
 os.system(cmd_1)
 
@@ -71,13 +71,13 @@ cmd_2 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) \
 	 			+ "/g; s/@LOG_FILE@/" + str(log_file_fmt)	\
 	 			+ "/g; s/@d1@/" + str(base_delay)	\
 	 			+ "/g; s/@d2@/" + str(base_delay + differential) + "/g\' " \
-	 			+ str(templates_dir) + "/p4app." + str(args.type) + ".json.template > " + AquaFlow_dir + "/p4app." + str(args.type) + ".json"
+	 			+ str(templates_dir) + "/p4app." + str(args.type) + ".json.template > " + dst_dir + "/p4app"  + ".json"
 #print cmd_2
 os.system(cmd_2)
 
 
 print "Starting Experiment ..."
-os.system("sudo ./run.sh " + str(args.type))
+os.system("sudo "+ AquaFlow_dir + "/run.sh " + str(args.type))
 os.system("sudo chmod -R 777 " + str(AquaFlow_dir))
 
 

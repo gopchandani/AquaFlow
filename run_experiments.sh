@@ -35,7 +35,7 @@ do
 		echo "Differential = " $diff
 		echo "Payload size = " $pkt_size
 
-		sudo python experiment.py --differential $diff --iface $i_face --npackets $n_packets --type $exp_type --payload $pkt_size
+		sudo python experiments/experiment.py --differential $diff --iface $i_face --npackets $n_packets --type $exp_type --payload $pkt_size
 
 	done
 done

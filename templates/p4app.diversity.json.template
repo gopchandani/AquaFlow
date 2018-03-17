@@ -21,19 +21,19 @@
           },
           "switches": {
               "s1": {
-                  "entries": "diversity-commands/s1-commands.txt"
+                  "entries": "s1-commands.txt"
               },
               "s2": {
-                  "entries": "diversity-commands/s2-commands.txt"
+                  "entries": "s2-commands.txt"
               },
               "s3": {
-                  "entries": "diversity-commands/s3-commands.txt"
+                  "entries": "s3-commands.txt"
               },
               "s4": {
-                  "entries": "diversity-commands/s4-commands.txt"
+                  "entries": "s4-commands.txt"
               },
               "s5": {
-                  "entries": "diversity-commands/s5-commands.txt"
+                  "entries": "s5-commands.txt"
               }
           }
        }

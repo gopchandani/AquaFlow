@@ -21,25 +21,25 @@
           },
           "switches": {
               "s1": {
-                  "entries": "butterfly-commands/s1-commands.txt"
+                  "entries": "s1-commands.txt"
               },
               "s2": {
-                  "entries": "butterfly-commands/s2-commands.txt"
+                  "entries": "s2-commands.txt"
               },
               "s3": {
-                  "entries": "butterfly-commands/s3-commands.txt"
+                  "entries": "s3-commands.txt"
               },
               "s4": {
-                  "entries": "butterfly-commands/s4-commands.txt"
+                  "entries": "s4-commands.txt"
               },
               "s5": {
-                  "entries": "butterfly-commands/s5-commands.txt"
+                  "entries": "s5-commands.txt"
               },
               "s6": {
-                  "entries": "butterfly-commands/s6-commands.txt"
+                  "entries": "s6-commands.txt"
               },
               "s7": {
-                  "entries": "butterfly-commands/s7-commands.txt"
+                  "entries": "s7-commands.txt"
               }
           }
        }

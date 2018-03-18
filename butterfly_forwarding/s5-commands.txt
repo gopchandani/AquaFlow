@@ -1,9 +1,6 @@
 table_set_default switch_stats add_switch_stats 5
 
-table_add table_ingress_forward bi_cast 01:0C:CD:01:00:00 => 2 3 3
+table_add table_ingress_forward_contents uni_cast 01:0C:CD:01:00:00 66 => 2
+table_add table_ingress_forward_contents uni_cast 01:0C:CD:01:00:00 65 => 3
 
-mirroring_add 451 3
-
-table_add table_egress_forward forward_egress_processing_bi_cast_for_orig 01:0C:CD:01:00:00 1 0 => 5
-table_add table_egress_forward forward_egress_processing_bi_cast_for_clone 01:0C:CD:01:00:00 1 1 => 5
-
+table_add table_egress_forward forward_egress_processing_uni_cast 01:0C:CD:01:00:00 0 0 => 5 2

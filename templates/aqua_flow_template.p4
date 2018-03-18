@@ -331,7 +331,16 @@ control MyIngress(inout headers hdr,
 
         actions = {_nop; uni_cast; bi_cast;}
         size = 10;
-        default_action = _nop;
+    }
+
+    table table_ingress_forward_contents {
+        key = {
+                hdr.ethernet.dstAddr: exact;
+                hdr.coding.packet_contents: exact;
+              }
+
+        actions = {_nop; uni_cast;}
+        size = 10;
     }
 
     apply
@@ -366,8 +375,13 @@ control MyIngress(inout headers hdr,
 
             //Logic for forwarding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
-                table_ingress_forward.apply();
+
+                if (!table_ingress_forward.apply().hit) {
+                    table_ingress_forward_contents.apply();
+                }
+
             }
+
 
             //Logic for decoding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {

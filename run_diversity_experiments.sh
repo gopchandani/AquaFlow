@@ -1,11 +1,10 @@
 #!/bin/bash
 
-
 OPTIND=1         
 
 # Initialize our own variables:
 i_face="h2-eth0"
-n_packets=100
+n_packets=1000
 exp_type="diversity"
 
 while getopts "h?i:n:t:" opt; do
@@ -27,7 +26,7 @@ echo "Experiemt type: " $exp_type
 
 for diff in -5 -1 0 1 5
 do
-	for pkt_size in 64 128 256 512 1024 2048 4096
+	for pkt_size in 128 1024 2048 4096
 	do
 		echo "Configuration of  next experiment ...."
 		echo "Differential = " $diff

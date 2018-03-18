@@ -52,7 +52,7 @@ const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
 
 const bit<1> DONT_CLONE = 0;
 const bit<1> DO_CLONE = 1;
-const bit<32> DECODING_BUFFER_SIZE = 128;
+const bit<32> DECODING_BUFFER_SIZE = 1024;
 
 const bit<32> CODING_INPUT_BATCH_SIZE = 2;
 

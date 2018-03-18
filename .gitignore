@@ -8,3 +8,6 @@ butterfly/aqua_flow.p4
 butterfly/p4app.json
 diversity/aqua_flow.p4
 diversity/p4app.json
+butterfly_forwarding/aqua_flow.p4
+butterfly_forwarding/p4app.json
+d

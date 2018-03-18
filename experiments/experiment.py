@@ -94,6 +94,38 @@ def run_butterfly_experiment(AquaFlow_dir, base_delay, iface1, iface2, npackets,
     os.system(cmd_2)
 
 
+def run_butterfly_forwarding_experiment(AquaFlow_dir, base_delay, iface1, iface2, npackets, payload):
+
+    assert (payload >= 1)
+
+    templates_dir = AquaFlow_dir + "/templates"
+
+    experiment_name = "payload_" + str(payload) + "_differential_" + ".json"
+
+    log_file = AquaFlow_dir + "/experiments/data/" + "butterfly_forwarding" + "_" + experiment_name
+
+    AquaFlow_dir_fmt = process_file_name(AquaFlow_dir)
+    log_file_fmt = process_file_name(log_file)
+    dst_dir = AquaFlow_dir + "/" + "butterfly_forwarding"
+
+    cmd_1 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) + "/g\' " + str(
+        templates_dir) + "/aqua_flow_template.p4 > " + dst_dir + "/aqua_flow.p4"
+    # print cmd_1
+    os.system(cmd_1)
+
+    cmd_2 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) \
+            + "/g; s/@AQUA_FLOW_DIR@/" + str(AquaFlow_dir_fmt) \
+            + "/g; s/@IFACE1@/" + str(iface1) \
+            + "/g; s/@IFACE2@/" + str(iface2) \
+            + "/g; s/@N_PACKETS@/" + str(npackets) \
+            + "/g; s/@LOG_FILE@/" + str(log_file_fmt) \
+            + "/g; s/@d1@/" + str(base_delay) \
+            + "/g\' " \
+            + str(templates_dir) + "/p4app." + "butterfly" + ".json.template > " + dst_dir + "/p4app" + ".json"
+
+    os.system(cmd_2)
+
+
 def main():
 
     AquaFlow_dir = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -130,6 +162,9 @@ def main():
     elif args.type == "butterfly":
         run_butterfly_experiment(AquaFlow_dir, base_delay,
                                  args.iface1, args.iface2, int(args.npackets), int(args.payload))
+    elif args.type == "butterfly_forwarding":
+        run_butterfly_forwarding_experiment(AquaFlow_dir, base_delay,
+                                            args.iface1, args.iface2, int(args.npackets), int(args.payload))
     else:
         print "Invalid experiment type:", args.type
 

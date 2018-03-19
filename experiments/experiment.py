@@ -62,18 +62,21 @@ def run_diversity_experiment(AquaFlow_dir, base_delay, differential, npackets, p
     os.system("sudo chmod -R 777 " + str(AquaFlow_dir))
 
 
-def run_butterfly_experiment(AquaFlow_dir, base_delay, iface1, iface2, npackets, payload):
+def run_butterfly_experiment(AquaFlow_dir, base_delay, iface1, iface2, npackets, payload, send_rate, bw):
 
-    assert (payload >= 1)
+    base_delay = 0
+    assert (payload >= 1 and payload % 8 == 0)
 
     templates_dir = AquaFlow_dir + "/templates"
 
-    experiment_name = "payload_" + str(payload) + "_differential_" + ".json"
+    experiment_name = "payload_" + str(payload) + "_send_rate_" + str(send_rate)
 
-    log_file = AquaFlow_dir + "/experiments/data/" + "butterfly" + "_" + experiment_name
-
+    log_file_1 = AquaFlow_dir + "/experiments/data/" + "butterfly" + "_" + experiment_name + "_recv_1.json" 
+    log_file_2 = AquaFlow_dir + "/experiments/data/" + "butterfly" + "_" + experiment_name + "_recv_2.json" 
     AquaFlow_dir_fmt = process_file_name(AquaFlow_dir)
-    log_file_fmt = process_file_name(log_file)
+    log_file_1_fmt = process_file_name(log_file_1)
+    log_file_2_fmt = process_file_name(log_file_2)
+
     dst_dir = AquaFlow_dir + "/" + "butterfly"
 
     cmd_1 = "sed -e \'s/@PAYLOAD_SIZE@/" + str(payload) + "/g\' " + str(
@@ -86,13 +89,18 @@ def run_butterfly_experiment(AquaFlow_dir, base_delay, iface1, iface2, npackets,
             + "/g; s/@IFACE1@/" + str(iface1) \
             + "/g; s/@IFACE2@/" + str(iface2) \
             + "/g; s/@N_PACKETS@/" + str(npackets) \
-            + "/g; s/@LOG_FILE@/" + str(log_file_fmt) \
+            + "/g; s/@LOG_FILE_1@/" + str(log_file_1_fmt) \
+            + "/g; s/@LOG_FILE_2@/" + str(log_file_2_fmt) \
             + "/g; s/@d1@/" + str(base_delay) \
+            + "/g; s/@bw@/" + str(bw) \
+            + "/g; s/@bw2@/" + str(2*bw) \
+             + "/g; s/@RATE@/" + str(send_rate) \
             + "/g\' " \
             + str(templates_dir) + "/p4app." + "butterfly" + ".json.template > " + dst_dir + "/p4app" + ".json"
 
     os.system(cmd_2)
 
+    os.system("sudo chmod -R 777 " + str(AquaFlow_dir))
 
 def main():
 
@@ -101,7 +109,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Script to run coding experiments')
     parser.add_argument('--differential', dest="differential", help='differential added to s1-s4 link',
-                        type=str, action="store")
+                        type=str, action="store", default="0")
 
     parser.add_argument('--payload', dest="payload", help='payload size',
                         type=str, action="store", required=True)
@@ -121,15 +129,18 @@ def main():
     parser.add_argument('--type', dest="type", help='Experiment type',
                         type=str, action="store", default="diversity")
 
+    parser.add_argument('--rate', dest="rate", help='send rate for butterfly/butterfly forwarding', type=float, action="store", default=0.0)
+    parser.add_argument('--bw', dest="bw", help='Bandwidth in Mbits/sec for all links', type=float, action="store", default=0.5)
+
     args = parser.parse_args()
 
     if args.type == "diversity":
         run_diversity_experiment(AquaFlow_dir, base_delay,
                                  int(args.differential), int(args.npackets), int(args.payload), args.iface)
 
-    elif args.type == "butterfly":
+    elif args.type == "butterfly" or args.type == "butterfly_forwarding" :
         run_butterfly_experiment(AquaFlow_dir, base_delay,
-                                 args.iface1, args.iface2, int(args.npackets), int(args.payload))
+                                 args.iface1, args.iface2, int(args.npackets), int(args.payload), float(args.rate), float(args.bw))
     else:
         print "Invalid experiment type:", args.type
 

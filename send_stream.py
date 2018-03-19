@@ -8,6 +8,8 @@ from scapy.all import bind_layers
 from scapy.all import Ether
 from scapy.all import sendp
 
+import time
+
 from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField
 
 parser = argparse.ArgumentParser(description='send stream')
@@ -17,6 +19,8 @@ parser.add_argument('--type', dest="type", help='topology_name',
                     type=str, action="store", default="diversity")
 parser.add_argument('--payload', dest="payload", help='payload size',
                     action="store", required=True)
+
+parser.add_argument('--rate', dest="rate", action="store", type=float, default=0.0, help="send rate in Mbits per sec")
 
 args = parser.parse_args()
 
@@ -52,7 +56,7 @@ def main():
     if payload_size <= 0 :
         payload_size = 1
 
-    if args.type == "butterfly":
+    if args.type == "butterfly" or args.type == "butterfly_forwarding":
         dst_mac = "01:0C:CD:01:00:00"
     elif args.type == "diversity":
         dst_mac = "00:00:00:00:05:02"
@@ -60,17 +64,118 @@ def main():
         print "Incorrect experiment type"
         sys.exit(0)
 
-    pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload="A" * (payload_size/8))
-    pktA = pktA/' '
 
-    pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload="B" * (payload_size/8))
-    pktB = pktB/' '
+    if args.type == "diversity" :
 
-    time.sleep(2)
+        pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload="A" * (payload_size/8))
+        pktA = pktA/' '
 
-    for i in range(num_pkts/2):
-        sendp(pktA, iface=iface)
-        sendp(pktB, iface=iface)
+        pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload="B" * (payload_size/8))
+        pktB = pktB/' '
+
+        time.sleep(2)
+
+        for i in range(num_pkts/2):
+            sendp(pktA, iface=iface)
+            sendp(pktB, iface=iface)
+
+    else:
+
+        time.sleep(2)
+        n_bits = 2*payload_size
+        if args.rate == 0.0 :
+            time_to_sleep = 0.0
+        else:
+            rate = float(args.rate)*1000000.0
+            time_to_sleep = float(n_bits)/float(rate)
+
+            print "Time to sleep (secs) = ", time_to_sleep
+
+        payload_A = "A"*(payload_size/8)
+        payload_B = "B"*(payload_size/8)
+
+        pktAd = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
+        pktAd = pktAd/' '
+
+        pktBd = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
+        pktBd = pktBd/' '
+
+        curr_send_rate = float(args.rate)
+        
+        for i in range(num_pkts/2):
+
+            if i == 0 :
+                curr_time = str(time.time())
+
+                first_pkt_time = float(curr_time)
+                n_chars = (payload_size/8)
+
+                payload_A = "A"
+                payload_B = "B"
+
+                n_chars_left = n_chars - 1 - len(curr_time)
+
+                payload_A = payload_A + ("0"* n_chars_left)
+                payload_B = payload_B + ("0"* n_chars_left)
+
+                payload_A = payload_A + curr_time
+                payload_B = payload_B + curr_time
+
+                pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
+                pktA = pktA/' '
+
+                pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
+                pktB = pktB/' '
+                start_time = float(curr_time)
+                sendp(pktA, iface=iface)
+                sendp(pktB, iface=iface)
+                end_time = float(time.time())
+                elapsed = end_time - start_time
+            elif i == num_pkts/2 - 1:
+                curr_send_rate_str = str(curr_send_rate)
+                payload_A = "A"
+                payload_B = "B"
+
+                n_chars_left = n_chars - 1 - len(curr_send_rate_str)
+
+                payload_A = payload_A + ("0"* n_chars_left)
+                payload_B = payload_B + ("0"* n_chars_left)
+
+                payload_A = payload_A + curr_send_rate_str
+                payload_B = payload_B + curr_send_rate_str
+
+                pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
+                pktA = pktA/' '
+
+                pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
+                pktB = pktB/' '
+                start_time = float(curr_time)
+                sendp(pktA, iface=iface)
+                sendp(pktB, iface=iface)
+                last_pkt_time = float(curr_time)
+                end_time = float(time.time())
+                elapsed = end_time - start_time                
+
+            else:
+
+                curr_time = str(time.time())
+                start_time = float(curr_time)
+                sendp(pktAd, iface=iface)
+                sendp(pktBd, iface=iface)
+                last_pkt_time = float(curr_time)
+                end_time = float(time.time())
+                elapsed = end_time - start_time
+            
+
+                curr_send_rate = float(payload_size*2*(i+1))/float((last_pkt_time - first_pkt_time)*10**6)
+            
+            print "Pkt send time: ", curr_time
+
+            if(time_to_sleep > 0.0) :
+                if time_to_sleep - elapsed > 0.0 :
+                    time.sleep(float(time_to_sleep) - elapsed)
+
+        print "Send Rate (Mbits per sec): ", curr_send_rate
 
 
 if __name__ == '__main__':

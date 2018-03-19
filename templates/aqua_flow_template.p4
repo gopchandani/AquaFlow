@@ -331,6 +331,18 @@ control MyIngress(inout headers hdr,
 
         actions = {_nop; uni_cast; bi_cast;}
         size = 10;
+
+    }
+
+    table table_ingress_decode_forward {
+        key = {
+                hdr.ethernet.dstAddr: exact;
+              }
+
+        actions = {_nop; uni_cast; bi_cast;}
+        size = 10;
+        default_action = _nop;
+
     }
 
     table table_ingress_forward_contents {
@@ -376,12 +388,22 @@ control MyIngress(inout headers hdr,
             //Logic for forwarding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
 
-                if (!table_ingress_forward.apply().hit) {
+                //table_ingress_forward.apply();
+
+/*
+                switch(table_ingress_forward.apply().action_run) {
+                    _nop:
+                    {
+                        table_ingress_forward_contents.apply();
+                    }
+                }
+                */
+
+                if(!table_ingress_forward.apply().hit) {
                     table_ingress_forward_contents.apply();
                 }
 
             }
-
 
             //Logic for decoding
             else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
@@ -415,7 +437,7 @@ control MyIngress(inout headers hdr,
 
                     // Update here
                     reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                    table_ingress_forward.apply();
+                    table_ingress_decode_forward.apply();
                 }
                 else
                 if (meta.decoding_metadata.is_clone == 0)
@@ -473,14 +495,14 @@ control MyIngress(inout headers hdr,
 
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_ingress_forward.apply();
+                                table_ingress_decode_forward.apply();
                                 }
                             else
                             if (xor_received_per_index == 0)
                             {
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_ingress_forward.apply();
+                                table_ingress_decode_forward.apply();
 
                             }
                         }
@@ -512,7 +534,7 @@ control MyIngress(inout headers hdr,
                                 }
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_ingress_forward.apply();
+                                table_ingress_decode_forward.apply();
 
                             }
                             else
@@ -635,6 +657,19 @@ control MyEgress(inout headers hdr,
         default_action = _nop;
     }
 
+    table table_egress_forward_bi_cast {
+        key = {
+                hdr.ethernet.dstAddr: exact;
+                meta.forwarding_metadata.is_bi_cast: exact;
+                meta.forwarding_metadata.bi_cast_instance_num: exact;
+              }
+
+        actions = {_nop; forward_egress_processing_uni_cast; forward_egress_processing_bi_cast_for_orig;
+                    forward_egress_processing_bi_cast_for_clone;}
+        size = 10;
+        default_action = _nop;
+    }
+
     apply {
         if (hdr.coding.isValid()) {
 
@@ -682,7 +717,7 @@ control MyEgress(inout headers hdr,
 
                 meta.forwarding_metadata.bi_cast_instance_num = num_bi_cast_forwarding_input_pkts % 2;
 
-                table_egress_forward.apply();
+                table_egress_forward_bi_cast.apply();
 
                 if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
                     reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);

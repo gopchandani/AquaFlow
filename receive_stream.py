@@ -8,6 +8,7 @@ from scapy.all import *
 from scapy.all import FieldLenField, PacketListField
 from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField
 
+import time
 
 parser = argparse.ArgumentParser(description='Mininet demo')
 parser.add_argument('--log_file', dest="log_file", help='Path to log-file',
@@ -17,6 +18,7 @@ parser.add_argument('--iface', dest="iface", help='Interface name',
 parser.add_argument('--npackets', dest="npackets", help='number of packets to receive', action="store", required=True)
 
 parser.add_argument('--payload', dest="payload", help='recv payload size', action="store", required=True)
+parser.add_argument('--type', dest="type", help='experiment type', action="store", default="diversity")
 args = parser.parse_args()
 
 
@@ -63,13 +65,39 @@ class CodingHdrR(Packet):
                     StrFixedLenField("packet_payload", ' ' * (payload_size/8), length=payload_size/8)]
 
 
-rcvd_pkt_metrics_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
+if args.type == "diversity" :
+    rcvd_pkt_metrics_dict = {'A': {'coding': [], 'forwarding': [], 'decoding': []},
                          'B': {'coding': [], 'forwarding': [], 'decoding': []}}
+else:
+    rcvd_pkt_metrics_dict = {'first_pkt_time' : 0.0, 
+                            'n_bits_received' : 0, 
+                            'last_pkt_time' : 0.0
+                            }
 
 bind_layers(Ether, CodingHdrR, type=0x1234)
 
+def collect_butterfly_stats(pkt) :
 
-def collect_stats(pkt):
+    global packet_num, a, b, x, a_max_batch_num, b_max_batch_num, x_max_batch_num
+    global x_with_a, x_with_b, x_with_x
+    global rcvd_pkt_metrics_dict
+
+    packet_num += 1
+
+    recv_time = time.time()
+
+    if packet_num == 1 :
+        rcvd_pkt_metrics_dict['first_pkt_time'] = float(pkt[CodingHdrR].packet_payload[1:])
+
+    if packet_num == int(args.npackets) :
+        rcvd_pkt_metrics_dict['last_pkt_time'] = recv_time
+        rcvd_pkt_metrics_dict['send_rate'] = float(pkt[CodingHdrR].packet_payload[1:])
+        
+    rcvd_pkt_metrics_dict['n_bits_received'] += len(pkt[CodingHdrR].packet_payload)*8  
+
+
+
+def collect_diversity_stats(pkt):
 
     global packet_num, a, b, x, a_max_batch_num, b_max_batch_num, x_max_batch_num
     global x_with_a, x_with_b, x_with_x
@@ -123,15 +151,12 @@ def collect_stats(pkt):
             x_with_b += 1
         elif pkt[CodingHdrR].packet_payload[0] == 'X':
             x_with_x += 1
-    
 
-def main():
 
-    iface = args.iface
-    log_file = args.log_file
+def run_diversity_experiment(iface, fn) :
 
     try:
-        sniff(iface=iface, filter="ether proto 0x1234", prn=collect_stats, count=int(args.npackets))
+        sniff(iface=iface, filter="ether proto 0x1234", prn=fn, count=int(args.npackets))
     except:
         pass
 
@@ -158,6 +183,41 @@ def main():
     print "last_switch_enqt:", rcvd_pkt_metrics_dict['last_switch_enqt']
 
     print "Packet duration in network:", (rcvd_pkt_metrics_dict['last_switch_enqt']) - (rcvd_pkt_metrics_dict['first_switch_igt'])
+
+
+def run_butterfly_experiment(iface, fn) :
+
+    try:
+        sniff(iface=iface, filter="ether proto 0x1234", prn=fn, count=int(args.npackets))
+    except:
+        pass
+
+    time_diff = rcvd_pkt_metrics_dict['last_pkt_time'] - rcvd_pkt_metrics_dict['first_pkt_time']
+
+    print "First pkt time: ", rcvd_pkt_metrics_dict['first_pkt_time']
+    print "Last pkt time: ", rcvd_pkt_metrics_dict['last_pkt_time']
+    print "Time diff: ", time_diff
+    print "N bits received: ", rcvd_pkt_metrics_dict['n_bits_received']
+
+    rcvd_pkt_metrics_dict['throughput'] = float(rcvd_pkt_metrics_dict['n_bits_received'])/float(time_diff*1000000.0)
+    rcvd_pkt_metrics_dict['time_diff'] = time_diff
+    print "Observed Throughput : ", float(rcvd_pkt_metrics_dict['throughput'])
+
+    sys.stdout.flush()
+
+def main():
+
+    iface = args.iface
+    log_file = args.log_file
+    exp_type = args.type
+
+
+
+    if exp_type == "diversity" :
+        run_diversity_experiment(iface, collect_diversity_stats)
+    else :
+        run_butterfly_experiment(iface, collect_butterfly_stats)
+
 
     with open(log_file, 'w') as outfile:
         json.dump(rcvd_pkt_metrics_dict, outfile)

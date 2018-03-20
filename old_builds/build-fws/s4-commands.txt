@@ -1,4 +1,0 @@
-table_set_default switch_stats add_switch_stats 4
-
-table_add table_ingress_forward uni_cast 01:0C:CD:01:00:00 => 3
-table_add table_egress_forward forward_egress_processing_uni_cast 01:0C:CD:01:00:00 0 0 => 4 2

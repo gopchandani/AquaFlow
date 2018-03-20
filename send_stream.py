@@ -86,7 +86,7 @@ def main():
         time.sleep(2)
         n_bits = 2*payload_size
         if args.rate == 0.0 :
-            time_to_sleep = 0.0
+            avg_time_to_sleep = 0.0
         else:
             rate = float(args.rate)*1000000.0
             time_to_sleep = float(n_bits)/float(rate)

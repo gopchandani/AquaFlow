@@ -62,6 +62,7 @@ header coding_hdr_t {
     bit<8>  p;
     bit<8>  four;
     bit<8>  ver;
+    bit<8>  stream_id;
     bit<8>  packet_todo;
     bit<8>  packet_contents;
     bit<32>  coded_packets_batch_num;
@@ -279,7 +280,7 @@ control MyIngress(inout headers hdr,
 
     table table_input_splitting {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
                 meta.coding_metadata.per_batch_input_packet_num: exact;
               }
 
@@ -314,7 +315,7 @@ control MyIngress(inout headers hdr,
 
     table table_ingress_code {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
                 meta.coding_metadata.coding_loop_index: exact;
                 meta.coding_metadata.do_clone: exact;
               }
@@ -326,7 +327,7 @@ control MyIngress(inout headers hdr,
 
     table table_ingress_forward {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
               }
 
         actions = {_nop; uni_cast; bi_cast;}
@@ -336,7 +337,7 @@ control MyIngress(inout headers hdr,
 
     table table_ingress_decode_forward {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
               }
 
         actions = {_nop; uni_cast; bi_cast;}
@@ -347,7 +348,7 @@ control MyIngress(inout headers hdr,
 
     table table_ingress_forward_contents {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
                 hdr.coding.packet_contents: exact;
               }
 
@@ -614,7 +615,7 @@ control MyEgress(inout headers hdr,
 
     table table_egress_code {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
                 meta.coding_metadata.coding_loop_index: exact;
                 meta.coding_metadata.do_clone: exact;
               }
@@ -646,7 +647,7 @@ control MyEgress(inout headers hdr,
 
     table table_egress_forward {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
                 meta.forwarding_metadata.is_bi_cast: exact;
                 meta.forwarding_metadata.bi_cast_instance_num: exact;
               }
@@ -659,7 +660,7 @@ control MyEgress(inout headers hdr,
 
     table table_egress_forward_bi_cast {
         key = {
-                hdr.ethernet.dstAddr: exact;
+                hdr.coding.stream_id: exact;
                 meta.forwarding_metadata.is_bi_cast: exact;
                 meta.forwarding_metadata.bi_cast_instance_num: exact;
               }

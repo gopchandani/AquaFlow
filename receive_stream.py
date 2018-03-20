@@ -59,6 +59,7 @@ class CodingHdrR(Packet):
                     StrFixedLenField("P", "P", length=1),
                     StrFixedLenField("Four", "4", length=1),
                     XByteField("version", 0x01),
+                    XByteField("stream_id", 0x01),
                     XByteField("packet_todo", 0x01),
                     StrFixedLenField("packet_contents", ' ', length=1),
                     IntField("coded_packets_batch_num", 0),

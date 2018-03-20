@@ -1,2 +1,2 @@
-table_add table_ingress_forward uni_cast 00:00:00:00:05:02 => 2
-table_add table_egress_forward forward_egress_processing_uni_cast 00:00:00:00:05:02 0 0 => 2 3
+table_add table_ingress_forward uni_cast 1 => 2
+table_add table_egress_forward forward_egress_processing_uni_cast 1 0 0 => 2 3

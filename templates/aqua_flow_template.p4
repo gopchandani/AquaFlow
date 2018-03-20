@@ -63,7 +63,7 @@ header coding_hdr_t {
     bit<8>  four;
     bit<8>  ver;
     bit<8>  stream_id;
-    bit<8>  packet_todo;
+    bit<8>  next_primitive;
     bit<8>  packet_contents;
     bit<32>  coded_packets_batch_num;
     payload_t packet_payload;
@@ -362,7 +362,7 @@ control MyIngress(inout headers hdr,
 
             //Logic for Coding
 
-            if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
+            if (hdr.coding.next_primitive == CODING_PACKET_TO_CODE) {
 
                 // Increase these counters for input packets
                 if (meta.coding_metadata.coding_loop_index == 0)
@@ -387,18 +387,7 @@ control MyIngress(inout headers hdr,
             }
 
             //Logic for forwarding
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
-
-                //table_ingress_forward.apply();
-
-/*
-                switch(table_ingress_forward.apply().action_run) {
-                    _nop:
-                    {
-                        table_ingress_forward_contents.apply();
-                    }
-                }
-                */
+            else if (hdr.coding.next_primitive == CODING_PACKET_TO_FORWARD) {
 
                 if(!table_ingress_forward.apply().hit) {
                     table_ingress_forward_contents.apply();
@@ -407,7 +396,7 @@ control MyIngress(inout headers hdr,
             }
 
             //Logic for decoding
-            else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
+            else if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
 
                 this_pkt_index = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
@@ -624,12 +613,12 @@ control MyEgress(inout headers hdr,
     }
 
     action forward_egress_processing_uni_cast(switchID_t swid, bit<8> next_packet_todo) {
-        hdr.coding.packet_todo = next_packet_todo;
+        hdr.coding.next_primitive = next_packet_todo;
         add_switch_stats(swid);
     }
 
     action forward_egress_processing_bi_cast_for_orig(switchID_t swid) {
-        hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_todo_for_orig;
+        hdr.coding.next_primitive = meta.forwarding_metadata.bi_cast_todo_for_orig;
 
         standard_metadata.clone_spec = 451;
         clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.forwarding_metadata, standard_metadata});
@@ -640,7 +629,7 @@ control MyEgress(inout headers hdr,
     action forward_egress_processing_bi_cast_for_clone(switchID_t swid) {
         remove_switch_stats();
 
-        hdr.coding.packet_todo = meta.forwarding_metadata.bi_cast_todo_for_clone;
+        hdr.coding.next_primitive = meta.forwarding_metadata.bi_cast_todo_for_clone;
 
         add_switch_stats(swid);
     }
@@ -679,35 +668,35 @@ control MyEgress(inout headers hdr,
                 // Logic for coding has three type of packets...
 
                 // These are packets that just came from ingress and will be cloned and sent out...
-                if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DO_CLONE)
+                if (hdr.coding.next_primitive == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DO_CLONE)
                 {
                     // Ensure that the outgoing packet is correctly forwarded by the next hop
-                    hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+                    hdr.coding.next_primitive = CODING_PACKET_TO_FORWARD;
                     table_egress_code.apply();
                 }
 
                 // These are packets that are being recirculated
-                else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD && meta.coding_metadata.do_clone == DO_CLONE)
+                else if (hdr.coding.next_primitive == CODING_PACKET_TO_FORWARD && meta.coding_metadata.do_clone == DO_CLONE)
                 {
                     // Switch these back to coding
-                    hdr.coding.packet_todo = CODING_PACKET_TO_CODE;
+                    hdr.coding.next_primitive = CODING_PACKET_TO_CODE;
                     table_egress_code.apply();
                 }
                 // These are packets after the recirculated packets return from ingress
-                else if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DONT_CLONE)
+                else if (hdr.coding.next_primitive == CODING_PACKET_TO_CODE && meta.coding_metadata.do_clone == DONT_CLONE)
                 {
                     // Ensure that the outgoing packet is correctly forwarded by the next hop
-                    hdr.coding.packet_todo = CODING_PACKET_TO_FORWARD;
+                    hdr.coding.next_primitive = CODING_PACKET_TO_FORWARD;
                     switch_stats.apply();
                 }
 
                 // Logic to forward
-                else if (hdr.coding.packet_todo == CODING_PACKET_TO_FORWARD) {
+                else if (hdr.coding.next_primitive == CODING_PACKET_TO_FORWARD) {
                     table_egress_forward.apply();
                 }
 
                 // Logic for decoding
-                else if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
+                else if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
                     switch_stats.apply();
                 }
 
@@ -720,10 +709,10 @@ control MyEgress(inout headers hdr,
 
                 table_egress_forward_bi_cast.apply();
 
-                if (hdr.coding.packet_todo == CODING_PACKET_TO_CODE) {
+                if (hdr.coding.next_primitive == CODING_PACKET_TO_CODE) {
                     reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
                 } else
-                if (hdr.coding.packet_todo == CODING_PACKET_TO_DECODE) {
+                if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
                     reg_num_bi_cast_forwarding_input_pkts.read(num_bi_cast_forwarding_input_pkts, 0);
                 }
             }

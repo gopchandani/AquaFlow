@@ -143,7 +143,7 @@ struct metadata {
 /*************************************************************************
  ***********************  P A R S E R  ***********************************
  *************************************************************************/
-parser MyParser(packet_in packet,
+parser CodingParser(packet_in packet,
                 out headers hdr,
                 inout metadata meta,
                 inout standard_metadata_t standard_metadata) {
@@ -190,7 +190,7 @@ parser MyParser(packet_in packet,
 /*************************************************************************
  ************   C H E C K S U M    V E R I F I C A T I O N   *************
  *************************************************************************/
-control MyVerifyChecksum(inout headers hdr,
+control CodingVerifyChecksum(inout headers hdr,
                          inout metadata meta) {
     apply { }
 }
@@ -198,7 +198,7 @@ control MyVerifyChecksum(inout headers hdr,
 /*************************************************************************
  **************  I N G R E S S   P R O C E S S I N G   *******************
  *************************************************************************/
-control MyIngress(inout headers hdr,
+control CodingIngress(inout headers hdr,
                   inout metadata meta,
                   inout standard_metadata_t standard_metadata) {
 
@@ -335,7 +335,7 @@ control MyIngress(inout headers hdr,
 
     }
 
-    table table_ingress_decode_forward {
+    table table_ingress_decode {
         key = {
                 hdr.coding.stream_id: exact;
               }
@@ -412,7 +412,8 @@ control MyIngress(inout headers hdr,
                 //Get the current occupant batch_num of this index
                 reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, this_pkt_index);
 
-                //If it is zero, then set this current pkt as the occupant -- This is the reason why you init these things from 1
+                //If it is zero, then set this current pkt as the occupant --
+                // This is the reason why you init these things from 1
                 if (rcv_batch_num_per_index == 0)
                 {
                     reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
@@ -427,12 +428,13 @@ control MyIngress(inout headers hdr,
 
                     // Update here
                     reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                    table_ingress_decode_forward.apply();
+                    table_ingress_decode.apply();
                 }
                 else
                 if (meta.decoding_metadata.is_clone == 0)
                 {
-                    // if the batch number of the packet(s) in the buffer is different than this packet then rollover has occured, reset everything.
+                    // if the batch number of the packet(s) in the buffer is different than this packet then rollover has occured,
+                     //reset everything.
                     if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index)
                     {
                         reg_xor_received_per_index.write(this_pkt_index, 0);
@@ -485,14 +487,14 @@ control MyIngress(inout headers hdr,
 
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_ingress_decode_forward.apply();
+                                table_ingress_decode.apply();
                                 }
                             else
                             if (xor_received_per_index == 0)
                             {
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_ingress_decode_forward.apply();
+                                table_ingress_decode.apply();
 
                             }
                         }
@@ -524,7 +526,7 @@ control MyIngress(inout headers hdr,
                                 }
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
-                                table_ingress_decode_forward.apply();
+                                table_ingress_decode.apply();
 
                             }
                             else
@@ -553,7 +555,7 @@ control MyIngress(inout headers hdr,
 /*************************************************************************
  ****************  E G R E S S   P R O C E S S I N G   *******************
  *************************************************************************/
-control MyEgress(inout headers hdr,
+control CodingEgress(inout headers hdr,
                  inout metadata meta,
                  inout standard_metadata_t standard_metadata) {
 
@@ -609,6 +611,24 @@ control MyEgress(inout headers hdr,
                 meta.coding_metadata.do_clone: exact;
               }
         actions = {egress_cloning_step; egress_recirculate_step;}
+        size = 10;
+    }
+
+
+    action egress_decode_forward(switchID_t swid) {
+        add_switch_stats(swid);
+    }
+
+    action egress_decode_recirculate_step() {
+        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
+    }
+
+    table table_egress_decode {
+        key = {
+                hdr.coding.stream_id: exact;
+                meta.decoding_metadata.is_clone: exact;
+              }
+        actions = {egress_decode_recirculate_step; egress_decode_forward;}
         size = 10;
     }
 
@@ -697,7 +717,7 @@ control MyEgress(inout headers hdr,
 
                 // Logic for decoding
                 else if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
-                    switch_stats.apply();
+                    table_egress_decode.apply();
                 }
 
             } else if (meta.forwarding_metadata.is_bi_cast == 1) {
@@ -727,14 +747,14 @@ control MyEgress(inout headers hdr,
  *************   C H E C K S U M    C O M P U T A T I O N   **************
  *************************************************************************/
 
-control MyComputeChecksum(inout headers hdr, inout metadata meta) {
+control CodingComputeChecksum(inout headers hdr, inout metadata meta) {
     apply { }
 }
 
 /*************************************************************************
  ***********************  D E P A R S E R  *******************************
  *************************************************************************/
-control MyDeparser(packet_out packet, in headers hdr) {
+control CodingDeparser(packet_out packet, in headers hdr) {
     apply {
         packet.emit(hdr.ethernet);
         packet.emit(hdr.stats);
@@ -748,10 +768,10 @@ control MyDeparser(packet_out packet, in headers hdr) {
  *************************************************************************/
 
 V1Switch(
-MyParser(),
-MyVerifyChecksum(),
-MyIngress(),
-MyEgress(),
-MyComputeChecksum(),
-MyDeparser()
+CodingParser(),
+CodingVerifyChecksum(),
+CodingIngress(),
+CodingEgress(),
+CodingComputeChecksum(),
+CodingDeparser()
 ) main;

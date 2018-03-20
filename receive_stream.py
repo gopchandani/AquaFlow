@@ -89,7 +89,10 @@ def collect_butterfly_stats(pkt) :
     if packet_num == 1 :
         rcvd_pkt_metrics_dict['first_pkt_time'] = float(pkt[CodingHdrR].packet_payload[1:])
 
-    rcvd_pkt_metrics_dict['last_pkt_time'] = recv_time
+    if packet_num == int(args.npackets) :
+        rcvd_pkt_metrics_dict['last_pkt_time'] = recv_time
+        rcvd_pkt_metrics_dict['send_rate'] = float(pkt[CodingHdrR].packet_payload[1:])
+        
     rcvd_pkt_metrics_dict['n_bits_received'] += len(pkt[CodingHdrR].packet_payload)*8  
 
 
@@ -150,10 +153,10 @@ def collect_diversity_stats(pkt):
             x_with_x += 1
 
 
-def run_diversity_experiment() :
+def run_diversity_experiment(iface, fn) :
 
     try:
-        sniff(iface=iface, filter="ether proto 0x1234", prn=collect_diversity_stats, count=int(args.npackets))
+        sniff(iface=iface, filter="ether proto 0x1234", prn=fn, count=int(args.npackets))
     except:
         pass
 
@@ -182,6 +185,26 @@ def run_diversity_experiment() :
     print "Packet duration in network:", (rcvd_pkt_metrics_dict['last_switch_enqt']) - (rcvd_pkt_metrics_dict['first_switch_igt'])
 
 
+def run_butterfly_experiment(iface, fn) :
+
+    try:
+        sniff(iface=iface, filter="ether proto 0x1234", prn=fn, count=int(args.npackets))
+    except:
+        pass
+
+    time_diff = rcvd_pkt_metrics_dict['last_pkt_time'] - rcvd_pkt_metrics_dict['first_pkt_time']
+
+    print "First pkt time: ", rcvd_pkt_metrics_dict['first_pkt_time']
+    print "Last pkt time: ", rcvd_pkt_metrics_dict['last_pkt_time']
+    print "Time diff: ", time_diff
+    print "N bits received: ", rcvd_pkt_metrics_dict['n_bits_received']
+
+    rcvd_pkt_metrics_dict['throughput'] = float(rcvd_pkt_metrics_dict['n_bits_received'])/float(time_diff*1000000.0)
+    rcvd_pkt_metrics_dict['time_diff'] = time_diff
+    print "Observed Throughput : ", float(rcvd_pkt_metrics_dict['throughput'])
+
+    sys.stdout.flush()
+
 def main():
 
     iface = args.iface
@@ -191,20 +214,9 @@ def main():
 
 
     if exp_type == "diversity" :
-        run_diversity_experiment()
+        run_diversity_experiment(iface, collect_diversity_stats)
     else :
-        run_butterfly_experiment()
-
-        time_diff = rcvd_pkt_metrics_dict['last_pkt_time'] - rcvd_pkt_metrics_dict['first_pkt_time']
-
-        print "First pkt time: ", rcvd_pkt_metrics_dict['first_pkt_time']
-        print "Last pkt time: ", rcvd_pkt_metrics_dict['last_pkt_time']
-        print "Time diff: ", time_diff
-        print "N bits received: ", rcvd_pkt_metrics_dict['n_bits_received']
-
-        rcvd_pkt_metrics_dict['throughput'] = float(rcvd_pkt_metrics_dict)/float(time_diff)
-        rcvd_pkt_metrics_dict['time_diff'] = time_diff
-        print "Observed Throughput : ", float(rcvd_pkt_metrics_dict)/float(time_diff)
+        run_butterfly_experiment(iface, collect_butterfly_stats)
 
 
     with open(log_file, 'w') as outfile:

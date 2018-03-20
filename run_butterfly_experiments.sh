@@ -6,8 +6,9 @@ OPTIND=1
 # Initialize our own variables:
 i_face_1="h2-eth0"
 i_face_2="h3-eth0"
-n_packets=100
+n_packets=1000
 exp_type="butterfly"
+bandwidth=0.05
 
 while getopts "h?i:j:n" opt; do
     case "$opt" in
@@ -29,14 +30,17 @@ echo "Iface 2: " $i_face_2
 echo "NPackets: " $n_packets
 echo "Experiemt type: " $exp_type
 
-for send_rate in 0.1
+for send_rate in 0.01 0.02 0.03 0.04 0.05 0.06 0.07 0.08 0.09 0.1
 do
 	for pkt_size in 4096
 	do
 		echo "Configuration of  next experiment ...."
 		echo "Payload size = " $pkt_size
 
-		sudo python experiments/experiment.py --iface1 $i_face_1 --iface2 $i_face_2 --npackets $n_packets --type $exp_type --payload $pkt_size --rate $send_rate --bw 1.0
-
+		sudo python experiments/experiment.py --iface1 $i_face_1 --iface2 $i_face_2 --npackets $n_packets --type $exp_type --payload $pkt_size --rate $send_rate --bw $bandwidth
+        rm -rf experiments/pcaps/pcaps_butterfly_payload_${pkt_size}_send_rate_${send_rate}
+        mkdir -p experiments/pcaps/pcaps_butterfly_payload_${pkt_size}_send_rate_${send_rate}
+        cp build/*.pcap experiments/pcaps/pcaps_butterfly_payload_${pkt_size}_send_rate_${send_rate}
+        sudo chmod -R 777 experiments/pcaps/pcaps_butterfly_payload_${pkt_size}_send_rate_${send_rate}
 	done
 done

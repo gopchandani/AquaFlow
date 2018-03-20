@@ -137,7 +137,7 @@ def plot_diversity_results () :
 def plot_butterfly_results() :
 
 	payload = 4096
-	rates = [0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0]
+	rates = [0.01 ,0.02, 0.03, 0.04 ,0.05, 0.06 ,0.07 ,0.08, 0.09, 0.1]
 
 	coding_throughput = []
 	forwarding_throughput = []
@@ -157,35 +157,35 @@ def plot_butterfly_results() :
 		with open(f_name2, 'r') as infile2:
 			rcvd_pkt_metrics_dict2 = json.load(infile2)
 
-		with open(f_name3, 'r') as infile1:
+		with open(f_name3, 'r') as infile3:
 			rcvd_pkt_metrics_dict3 = json.load(infile3)
 
-		with open(f_name4, 'r') as infile1:
+		with open(f_name4, 'r') as infile4:
 			rcvd_pkt_metrics_dict4 = json.load(infile4)
 
 
 		if rcvd_pkt_metrics_dict1['time_diff'] > rcvd_pkt_metrics_dict2['time_diff'] :
-			coding_throughput.append(rcvd_pkt_metrics_dict1['throughput'])
+			coding_throughput.append(float(rcvd_pkt_metrics_dict1['throughput'])/float(rcvd_pkt_metrics_dict1['send_rate']))
 		else:
-			coding_throughput.append(rcvd_pkt_metrics_dict2['throughput'])
+			coding_throughput.append(float(rcvd_pkt_metrics_dict2['throughput'])/float(rcvd_pkt_metrics_dict2['send_rate']))
 
 		if rcvd_pkt_metrics_dict3['time_diff'] > rcvd_pkt_metrics_dict4['time_diff'] :
-			forwarding_throughput.append(rcvd_pkt_metrics_dict3['throughput'])
+			forwarding_throughput.append(float(rcvd_pkt_metrics_dict3['throughput'])/float(rcvd_pkt_metrics_dict3['send_rate']))
 		else:
-			forwarding_throughput.append(rcvd_pkt_metrics_dict4['throughput'])
+			forwarding_throughput.append(float(rcvd_pkt_metrics_dict4['throughput'])/float(rcvd_pkt_metrics_dict4['send_rate']))
 
 
 	fig = plt.figure(dpi=100)
 	ax = fig.add_subplot(111)
 
 
-	ax.plot(rates, coding_throughput, marker="o", label = "Coding throughput")
-	ax.plot(rates, forwarding_throughput, marker = "*", label="Forwarding throughput")
+	ax.plot(rates, coding_throughput, marker="o", label = "Throughput Ratio with Coding")
+	ax.plot(rates, forwarding_throughput, marker = "*", label="Throughput Ratio with Forwarding")
 
 	ax.set_xlabel("Input packet Transmission rate (Mbits per sec)")
-	ax.set_ylabel("Observed data receive rate (bits per sec)")
+	ax.set_ylabel("Observed Throughput ration (Received data rate/Actual send data rate)")
 
-	ax.legend()
+	ax.legend(loc='best')
 	ax.set_xticks(rates)
 
 	plt.show()

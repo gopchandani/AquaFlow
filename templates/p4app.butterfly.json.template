@@ -7,18 +7,18 @@
           "cli": false,
           "pcap_dump": true,
           "bmv2_log": true,
-          "links": [["h1", "s1", "@d1@ms", @bw2@], ["h2", "s6", "@d1@ms", @bw@], ["h3", "s7", "@d1@ms", @bw@],
+          "links": [["h1", "s1", "@d1@ms", @bw2@], ["h2", "s6", "@d1@ms", @bw2@], ["h3", "s7", "@d1@ms", @bw2@],
             ["s1", "s2", "@d1@ms", @bw@], ["s1", "s3", "@d1@ms", @bw@], ["s2", "s4", "@d1@ms", @bw@], ["s3", "s4", "@d1@ms", @bw@], ["s4", "s5", "@d1@ms", @bw@],
             ["s2", "s6", "@d1@ms", @bw@], ["s3", "s7", "@d1@ms", @bw@], ["s5", "s6", "@d1@ms", @bw@], ["s5", "s7", "@d1@ms", @bw@]],
 
           "hosts": {
             "h1": {
-                "cmd": "sudo python @AQUA_FLOW_DIR@/send_stream.py --npackets @N_PACKETS@ --type diversity --payload @PAYLOAD_SIZE@ --rate @RATE@",
+                "cmd": "sudo python @AQUA_FLOW_DIR@/send_stream.py --npackets @N_PACKETS@ --type butterfly --payload @PAYLOAD_SIZE@ --rate @RATE@",
                 "wait": false
             },
             "h2": {
                 "cmd": "sudo python @AQUA_FLOW_DIR@/receive_stream.py --iface @IFACE1@ --npackets @N_PACKETS@ --payload @PAYLOAD_SIZE@ --log_file @LOG_FILE_1@ --type butterfly",
-                "wait": true
+                "wait": false
             },
             "h3": {
                 "cmd": "sudo python @AQUA_FLOW_DIR@/receive_stream.py --iface @IFACE2@ --npackets @N_PACKETS@ --payload @PAYLOAD_SIZE@ --log_file @LOG_FILE_2@ --type butterfly",

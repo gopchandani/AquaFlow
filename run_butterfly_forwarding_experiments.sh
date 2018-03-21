@@ -30,7 +30,7 @@ echo "Iface 2: " $i_face_2
 echo "NPackets: " $n_packets
 echo "Experiemt type: " $exp_type
 
-for send_rate in 0.07 0.08 0.09 0.1
+for send_rate in 0.08 0.09 0.1
 do
     for pkt_size in 4096
     do

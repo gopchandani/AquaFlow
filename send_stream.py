@@ -11,6 +11,7 @@ from scapy.all import sendp
 import time
 
 from scapy.all import Packet, XStrFixedLenField, StrFixedLenField, XByteField, IntField
+import numpy as np
 
 parser = argparse.ArgumentParser(description='send stream')
 parser.add_argument('--npackets',dest="npackets", help='n_packets td send',
@@ -21,6 +22,7 @@ parser.add_argument('--payload', dest="payload", help='payload size',
                     action="store", required=True)
 
 parser.add_argument('--rate', dest="rate", action="store", type=float, default=0.0, help="send rate in Mbits per sec")
+
 
 args = parser.parse_args()
 
@@ -88,6 +90,7 @@ def main():
         else:
             rate = float(args.rate)*1000000.0
             time_to_sleep = float(n_bits)/float(rate)
+            avg_time_to_sleep = float(payload_size)/float(rate)
 
             print "Time to sleep (secs) = ", time_to_sleep
 
@@ -128,9 +131,27 @@ def main():
                 pktB = pktB/' '
                 start_time = float(curr_time)
                 sendp(pktA, iface=iface)
+                end_time = float(time.time())
+                elapsed = end_time - start_time
+
+
+                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+                if time_to_sleep - elapsed > 0 :
+                    time.sleep(time_to_sleep - elapsed)
+
+
+                start_time = float(time.time()) 
                 sendp(pktB, iface=iface)
                 end_time = float(time.time())
                 elapsed = end_time - start_time
+
+                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+                if time_to_sleep - elapsed > 0 :
+                    time.sleep(time_to_sleep - elapsed)
+
+
+
+                
             elif i == num_pkts/2 - 1:
                 curr_send_rate_str = str(curr_send_rate)
                 payload_A = "A"
@@ -149,31 +170,56 @@ def main():
 
                 pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
                 pktB = pktB/' '
-                start_time = float(curr_time)
+                
+                start_time = float(time.time())
                 sendp(pktA, iface=iface)
-                sendp(pktB, iface=iface)
-                last_pkt_time = float(curr_time)
                 end_time = float(time.time())
                 elapsed = end_time - start_time                
 
+                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+                if time_to_sleep - elapsed > 0 :
+                    time.sleep(time_to_sleep - elapsed)
+
+
+                start_time = float(time.time())
+                sendp(pktB, iface=iface)         
+                end_time = float(time.time())
+                elapsed = end_time - start_time  
+                last_pkt_time = float(end_time)              
+
+                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+                if time_to_sleep - elapsed > 0 :
+                    time.sleep(time_to_sleep - elapsed)
+                
             else:
 
-                curr_time = str(time.time())
-                start_time = float(curr_time)
-                sendp(pktAd, iface=iface)
-                sendp(pktBd, iface=iface)
-                last_pkt_time = float(curr_time)
+                start_time = float(time.time())
+                sendp(pktA, iface=iface)
                 end_time = float(time.time())
-                elapsed = end_time - start_time
-            
+                elapsed = end_time - start_time                
+
+                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+                if time_to_sleep - elapsed > 0 :
+                    time.sleep(time_to_sleep - elapsed)
+
+
+                start_time = float(time.time())
+                sendp(pktB, iface=iface)         
+                end_time = float(time.time())
+                elapsed = end_time - start_time  
+                last_pkt_time = float(end_time)              
+
+                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+                if time_to_sleep - elapsed > 0 :
+                    time.sleep(time_to_sleep - elapsed)
 
                 curr_send_rate = float(payload_size*2*(i+1))/float((last_pkt_time - first_pkt_time)*10**6)
             
-            print "Pkt send time: ", curr_time
+            print "Pkt batch send time: ", time.time()
 
-            if(time_to_sleep > 0.0) :
-                if time_to_sleep - elapsed > 0.0 :
-                    time.sleep(float(time_to_sleep) - elapsed)
+            #if(time_to_sleep > 0.0) :
+            #    if time_to_sleep - elapsed > 0.0 :
+            #        time.sleep(float(time_to_sleep) - elapsed)
 
         print "Send Rate (Mbits per sec): ", curr_send_rate
 

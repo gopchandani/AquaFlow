@@ -214,7 +214,6 @@ control CodingIngress(inout headers hdr,
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_sent_per_index;
-    register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_recv_per_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_xor_received_per_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_batch_num_per_index;
 
@@ -224,7 +223,6 @@ control CodingIngress(inout headers hdr,
     bit<32> b_index;
     bit<32> x_index;
     bit<32> num_sent_per_index;
-    bit<32> num_recv_per_index;
     bit<32> xor_received_per_index;
 
     action _nop () {
@@ -400,9 +398,6 @@ control CodingIngress(inout headers hdr,
 
                 this_pkt_index = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
-                // Get the number of pkts received for this batch num
-                reg_num_recv_per_index.read(num_recv_per_index, this_pkt_index);
-
                 // Get the number of sent out for this batch num
                 reg_num_sent_per_index.read(num_sent_per_index, this_pkt_index);
 
@@ -439,11 +434,9 @@ control CodingIngress(inout headers hdr,
                     {
                         reg_xor_received_per_index.write(this_pkt_index, 0);
                         reg_num_sent_per_index.write(this_pkt_index, 0);
-                        reg_num_recv_per_index.write(this_pkt_index, 0);
 
                         xor_received_per_index = 0;
                         num_sent_per_index = 0;
-                        num_recv_per_index = 0;
 
                         // And put the new batch_num in the buffer
                         reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
@@ -452,7 +445,6 @@ control CodingIngress(inout headers hdr,
                     if (num_sent_per_index < 2)
                     {
                         // Update for all non-cloned packets
-                        reg_num_recv_per_index.write(this_pkt_index, num_recv_per_index + 1);
 
                         // Copy the packet payload in appropriate buffer and update the index
                         if (hdr.coding.packet_contents == CODING_A) {
@@ -536,12 +528,6 @@ control CodingIngress(inout headers hdr,
                             }
                         }
                     }
-                    else
-                    {
-                        // Update for all non-cloned packets
-                        reg_num_recv_per_index.write(this_pkt_index, num_recv_per_index + 1);
-                    }
-
                 }
             }
         }

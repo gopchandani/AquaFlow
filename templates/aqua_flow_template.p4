@@ -214,7 +214,6 @@ control CodingIngress(inout headers hdr,
     register<bit<32>>(1) reg_b_index;
     register<bit<32>>(1) reg_x_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_sent_per_index;
-    register<bit<32>>(DECODING_BUFFER_SIZE) reg_xor_received_per_index;
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_batch_num_per_index;
 
     bit<32> rcv_batch_num_per_index;
@@ -223,7 +222,6 @@ control CodingIngress(inout headers hdr,
     bit<32> b_index;
     bit<32> x_index;
     bit<32> num_sent_per_index;
-    bit<32> xor_received_per_index;
 
     action _nop () {
     }
@@ -401,9 +399,6 @@ control CodingIngress(inout headers hdr,
                 // Get the number of sent out for this batch num
                 reg_num_sent_per_index.read(num_sent_per_index, this_pkt_index);
 
-                // Get the status of received packets for this index
-                reg_xor_received_per_index.read(xor_received_per_index, this_pkt_index);
-
                 //Get the current occupant batch_num of this index
                 reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, this_pkt_index);
 
@@ -432,10 +427,8 @@ control CodingIngress(inout headers hdr,
                      //reset everything.
                     if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index)
                     {
-                        reg_xor_received_per_index.write(this_pkt_index, 0);
                         reg_num_sent_per_index.write(this_pkt_index, 0);
 
-                        xor_received_per_index = 0;
                         num_sent_per_index = 0;
 
                         // And put the new batch_num in the buffer
@@ -470,7 +463,7 @@ control CodingIngress(inout headers hdr,
                         if (hdr.coding.packet_contents == CODING_A || hdr.coding.packet_contents == CODING_B)
                         {
                             // If XOR was already received, then clone/decode and send this
-                            if (xor_received_per_index == 1)
+                            if (x_index >= this_pkt_index)
                             {
                                 //Clone this packet and send it along
                                 meta.decoding_metadata.is_clone = 1;
@@ -482,7 +475,6 @@ control CodingIngress(inout headers hdr,
                                 table_ingress_decode.apply();
                                 }
                             else
-                            if (xor_received_per_index == 0)
                             {
                                 // Update here
                                 reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
@@ -494,13 +486,12 @@ control CodingIngress(inout headers hdr,
                         // If the packet is X
                         else if (hdr.coding.packet_contents == CODING_X) {
 
-                            reg_xor_received_per_index.write(this_pkt_index, 1);
-
                             // If one packet was previously received/sent then decode using XOR
                             if (num_sent_per_index == 1) {
                                 // Pickup the uncoded packet and xor it with this one to get the other payload
                                 payload_t uncoded_payload;
 
+                                // check which one of the A or B packet was received...
                                 if (a_index >= this_pkt_index)
                                 {
                                     reg_payload_decoding_buffer_a.read(uncoded_payload, this_pkt_index);

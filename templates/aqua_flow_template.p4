@@ -52,7 +52,7 @@ const bit<8>  CODING_PACKET_TO_DECODE   = 0x03;
 
 const bit<1> DONT_CLONE = 0;
 const bit<1> DO_CLONE = 1;
-const bit<32> DECODING_BUFFER_SIZE = 1024;
+const bit<32> DECODING_BUFFER_SIZE = 1024; // This has to be a power of 2
 
 const bit<32> CODING_INPUT_BATCH_SIZE = 2;
 
@@ -462,20 +462,16 @@ control CodingIngress(inout headers hdr,
             //Logic for decoding
             else if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
 
+                // First get which index the packets in this batch belong to...
                 meta.decoding_metadata.batch_idx = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
                 //Get the current occupant batch_num of this index
                 reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, meta.decoding_metadata.batch_idx);
 
-                // If it is zero, then set this current pkt as the occupant --
-                // This is the reason why you init these things from 1
-                if (rcv_batch_num_per_index == 0)
-                {
-                    reg_rcv_batch_num_per_index.write(meta.decoding_metadata.batch_idx, hdr.coding.coded_packets_batch_num);
-                }
-
-                // if the batch number of the packet(s) in the buffer is different than this packet then
-                // rollover has occured, reset the batch number in the buffer.
+                // Assume that batch numbers are never zero, then:
+                // If the batch number of on the index is different than this packet then
+                // Either the value in rcv_batch_num_per_index is zero (in which case, it was never used)
+                // OR, rollover has occurred, reset the batch number in the buffer.
                 if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index)
                 {
                     // And put the new batch_num in the buffer
@@ -497,7 +493,7 @@ control CodingIngress(inout headers hdr,
                 // Also, put what packet number for this batch this particular packet is, inside it.
                 table_input_gathering.apply();
 
-                // In each packet, keep track of whether a coded packet has been received for this batch...
+                // In each packet, keep track of whether a coded packet has been received for its batch...
                 reg_coded_index.read(coded_index, 0);
                 if (coded_index >= meta.decoding_metadata.batch_idx)
                 {

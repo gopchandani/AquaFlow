@@ -117,12 +117,14 @@ struct intrinsic_metadata_t {
 struct coding_metadata_t {
     bit<16> coding_loop_index;
     bit<1>  do_clone;
-    bit<32>  per_batch_input_packet_num;
+    bit<32> per_batch_input_packet_num;
 }
 
 struct decoding_metadata_t {
     bit<8>  is_clone;
-    bit<32> idx;
+    bit<32> batch_idx;
+    bit<32> per_batch_input_packet_num;
+    bit<32> per_batch_coded_received;
 }
 
 struct forwarding_metadata_t {
@@ -208,22 +210,27 @@ control CodingIngress(inout headers hdr,
     bit<32> num_coding_input_pkts;
 
 
-    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_a;
-    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_b;
-    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_x;
-    register<bit<32>>(1) reg_a_index;
-    register<bit<32>>(1) reg_b_index;
-    register<bit<32>>(1) reg_x_index;
-    register<bit<32>>(DECODING_BUFFER_SIZE) reg_num_sent_per_index;
-    register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_batch_num_per_index;
+    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_uncoded;
+    register<payload_t>(DECODING_BUFFER_SIZE) reg_payload_decoding_buffer_coded;
+    register<bit<32>>(1) reg_uncoded_index;
+    register<bit<32>>(1) reg_coded_index;
+    bit<32> uncoded_index;
+    bit<32> coded_index;
 
+
+    // Captures how many of a given batch have we seen so far.
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_per_batch_input_packet_num;
+
+    // Captures which batch is in which index
+    register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_batch_num_per_index;
     bit<32> rcv_batch_num_per_index;
-    bit<32> a_index;
-    bit<32> b_index;
-    bit<32> x_index;
-    bit<32> num_sent_per_index;
+
 
     action _nop () {
+    }
+
+    action drop () {
+        mark_to_drop();
     }
 
     action send_from_ingress(bit<9> egress_port, bit<8> packet_contents) {
@@ -285,27 +292,32 @@ control CodingIngress(inout headers hdr,
         default_action = _nop;
     }
 
-    action copy_a () {
-        reg_payload_decoding_buffer_a.write(meta.decoding_metadata.idx, hdr.coding.packet_payload);
-        reg_a_index.write(0, meta.decoding_metadata.idx);
+    action copy_uncoded () {
+        // Copy this packet to the correct buffer
+        reg_payload_decoding_buffer_uncoded.write(meta.decoding_metadata.batch_idx, hdr.coding.packet_payload);
+
+        // Update the register which keeps track of different types of packets received for a batch
+        reg_uncoded_index.write(0, meta.decoding_metadata.batch_idx);
+
     }
 
-    action copy_b () {
-        reg_payload_decoding_buffer_b.write(meta.decoding_metadata.idx, hdr.coding.packet_payload);
-        reg_b_index.write(0, meta.decoding_metadata.idx);
-    }
+    action copy_coded () {
+        // Copy this packet to the correct buffer
+        reg_payload_decoding_buffer_coded.write(meta.decoding_metadata.batch_idx, hdr.coding.packet_payload);
 
-    action copy_x () {
-        reg_payload_decoding_buffer_x.write(meta.decoding_metadata.idx, hdr.coding.packet_payload);
-        reg_x_index.write(0, meta.decoding_metadata.idx);
+        // Update the register which keeps track of different types of packets received for a batch
+        reg_coded_index.write(0, meta.decoding_metadata.batch_idx);
     }
 
     table table_input_gathering {
         key = {
                 hdr.coding.stream_id: exact;
+                meta.decoding_metadata.is_clone: exact;
                 hdr.coding.packet_contents: exact;
+                meta.decoding_metadata.per_batch_input_packet_num: exact;
               }
-        actions = {_nop; copy_a; copy_b; copy_x;}
+
+        actions = {_nop; copy_uncoded; copy_coded;}
         size = 10;
         default_action = _nop;
     }
@@ -356,15 +368,48 @@ control CodingIngress(inout headers hdr,
 
     }
 
+    action clone_uni_cast(bit<9> egress_port) {
+        //Clone this packet and send it along
+        meta.decoding_metadata.is_clone = 1;
+        standard_metadata.clone_spec = 450;
+        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
+
+        uni_cast(egress_port);
+    }
+
+    action decode_using_register (bit<9> egress_port) {
+
+        // Pickup the uncoded packet and xor it with this one to get the new payload
+        payload_t uncoded_payload;
+        reg_payload_decoding_buffer_uncoded.read(uncoded_payload, meta.decoding_metadata.batch_idx);
+        hdr.coding.packet_payload = hdr.coding.packet_payload ^ uncoded_payload;
+
+        uni_cast(egress_port);
+    }
+
+    action decode_using_cloned (bit<9> egress_port) {
+
+        //fill up the clone with other payload by using the XOR coded payload in buffer
+        payload_t coded_payload;
+        reg_payload_decoding_buffer_coded.read(coded_payload, meta.decoding_metadata.batch_idx);
+        hdr.coding.packet_payload = hdr.coding.packet_payload ^ coded_payload;
+        hdr.coding.packet_contents = CODING_X;
+
+        uni_cast(egress_port);
+    }
+
     table table_ingress_decode {
         key = {
                 hdr.coding.stream_id: exact;
+                meta.decoding_metadata.is_clone: exact;
+                hdr.coding.packet_contents: exact;
+                meta.decoding_metadata.per_batch_input_packet_num: exact;
+                meta.decoding_metadata.per_batch_coded_received: exact;
               }
 
-        actions = {_nop; uni_cast; bi_cast;}
+        actions = {_nop; drop; uni_cast; clone_uni_cast; decode_using_register; decode_using_cloned;}
         size = 10;
-        default_action = _nop;
-
+        default_action = drop;
     }
 
     table table_ingress_forward_contents {
@@ -382,7 +427,6 @@ control CodingIngress(inout headers hdr,
         if (hdr.coding.isValid()) {
 
             //Logic for Coding
-
             if (hdr.coding.next_primitive == CODING_PACKET_TO_CODE) {
 
                 // Increase these counters for input packets
@@ -419,118 +463,48 @@ control CodingIngress(inout headers hdr,
             //Logic for decoding
             else if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
 
-                meta.decoding_metadata.idx = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
-
-                // Get the number of sent out for this batch num
-                reg_num_sent_per_index.read(num_sent_per_index, meta.decoding_metadata.idx);
+                meta.decoding_metadata.batch_idx = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
                 //Get the current occupant batch_num of this index
-                reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, meta.decoding_metadata.idx);
+                reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, meta.decoding_metadata.batch_idx);
 
-                //If it is zero, then set this current pkt as the occupant --
+                // If it is zero, then set this current pkt as the occupant --
                 // This is the reason why you init these things from 1
                 if (rcv_batch_num_per_index == 0)
                 {
-                    reg_rcv_batch_num_per_index.write(meta.decoding_metadata.idx, hdr.coding.coded_packets_batch_num);
+                    reg_rcv_batch_num_per_index.write(meta.decoding_metadata.batch_idx, hdr.coding.coded_packets_batch_num);
                 }
 
-                if (meta.decoding_metadata.is_clone == 1)  {
-                    //fill up the clone with other payload by using the XOR coded payload in buffer
-                    payload_t coded_payload;
-                    reg_payload_decoding_buffer_x.read(coded_payload, meta.decoding_metadata.idx);
-                    hdr.coding.packet_payload = hdr.coding.packet_payload ^ coded_payload;
-                    hdr.coding.packet_contents = CODING_X;
-
-                    // Update here
-                    reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
-                    table_ingress_decode.apply();
-                }
-                else
-                if (meta.decoding_metadata.is_clone == 0)
+                // if the batch number of the packet(s) in the buffer is different than this packet then
+                // rollover has occured, reset the batch number in the buffer.
+                if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index)
                 {
-                    // if the batch number of the packet(s) in the buffer is different than this packet then rollover has occured,
-                     //reset everything.
-                    if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index)
-                    {
-                        reg_num_sent_per_index.write(meta.decoding_metadata.idx, 0);
-                        num_sent_per_index = 0;
+                    // And put the new batch_num in the buffer
+                    reg_rcv_batch_num_per_index.write(meta.decoding_metadata.batch_idx, hdr.coding.coded_packets_batch_num);
 
-                        // And put the new batch_num in the buffer
-                        reg_rcv_batch_num_per_index.write(meta.decoding_metadata.idx, hdr.coding.coded_packets_batch_num);
-                    }
-
-                    // Do the gathering data gathering operation
-                    table_input_gathering.apply();
-
-                    // Just drop the third packet...
-                    if (num_sent_per_index < 2)
-                    {
-                        // Read these up before you do any processing
-                        reg_a_index.read(a_index, 0);
-                        reg_b_index.read(b_index, 0);
-                        reg_x_index.read(x_index, 0);
-
-                        // If the packet is A or B
-                        if (hdr.coding.packet_contents == CODING_A || hdr.coding.packet_contents == CODING_B)
-                        {
-                            // If XOR was already received, then clone/decode and send this
-                            if (x_index >= meta.decoding_metadata.idx)
-                            {
-                                //Clone this packet and send it along
-                                meta.decoding_metadata.is_clone = 1;
-                                standard_metadata.clone_spec = 450;
-                                clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
-
-                                // Update here
-                                reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
-                                table_ingress_decode.apply();
-                                }
-                            else
-                            {
-                                // Update here
-                                reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
-                                table_ingress_decode.apply();
-
-                            }
-                        }
-
-                        // If the packet is X
-                        else if (hdr.coding.packet_contents == CODING_X) {
-
-                            // If one packet was previously received/sent then decode using XOR
-                            if (num_sent_per_index == 1) {
-                                // Pickup the uncoded packet and xor it with this one to get the other payload
-                                payload_t uncoded_payload;
-
-                                // check which one of the A or B packet was received...
-                                if (a_index >= meta.decoding_metadata.idx)
-                                {
-                                    reg_payload_decoding_buffer_a.read(uncoded_payload, meta.decoding_metadata.idx);
-                                    payload_t a_payload;
-                                    a_payload = hdr.coding.packet_payload ^ uncoded_payload;
-                                    hdr.coding.packet_payload = a_payload;
-                                }
-                                else
-                                if (b_index >= meta.decoding_metadata.idx)
-                                {
-                                    reg_payload_decoding_buffer_b.read(uncoded_payload, meta.decoding_metadata.idx);
-                                    payload_t b_payload;
-                                    b_payload = hdr.coding.packet_payload ^ uncoded_payload;
-                                    hdr.coding.packet_payload = b_payload;
-                                }
-                                // Update here
-                                reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
-                                table_ingress_decode.apply();
-
-                            }
-                            else
-                            // If XOR was the first packet that arrived, then drop and wait for one of the others
-                            if (num_sent_per_index == 0) {
-                                mark_to_drop();
-                            }
-                        }
-                    }
+                    // Reset the per-batch packet number register
+                    reg_per_batch_input_packet_num.write(meta.decoding_metadata.batch_idx, 0);
                 }
+
+                // Update the register which keeps track of total number of packets received for a batch
+                reg_per_batch_input_packet_num.read(meta.decoding_metadata.per_batch_input_packet_num, meta.decoding_metadata.batch_idx);
+                meta.decoding_metadata.per_batch_input_packet_num = meta.decoding_metadata.per_batch_input_packet_num + 1;
+                reg_per_batch_input_packet_num.write(meta.decoding_metadata.batch_idx, meta.decoding_metadata.per_batch_input_packet_num);
+
+                // Do the gathering data gathering operation
+                // Also, put what packet number for this batch this particular packet is, inside it.
+                table_input_gathering.apply();
+
+                // In each packet, keep track of whether a coded packet has been received for this batch...
+                reg_coded_index.read(coded_index, 0);
+                if (coded_index >= meta.decoding_metadata.batch_idx)
+                {
+                    meta.decoding_metadata.per_batch_coded_received = 1;
+                }
+
+                // Do the decoding
+                table_ingress_decode.apply();
+
             }
         }
         else

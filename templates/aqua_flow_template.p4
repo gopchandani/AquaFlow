@@ -122,6 +122,7 @@ struct coding_metadata_t {
 
 struct decoding_metadata_t {
     bit<8>  is_clone;
+    bit<32> idx;
 }
 
 struct forwarding_metadata_t {
@@ -217,7 +218,6 @@ control CodingIngress(inout headers hdr,
     register<bit<32>>(DECODING_BUFFER_SIZE) reg_rcv_batch_num_per_index;
 
     bit<32> rcv_batch_num_per_index;
-    bit<32> this_pkt_index;
     bit<32> a_index;
     bit<32> b_index;
     bit<32> x_index;
@@ -281,6 +281,31 @@ control CodingIngress(inout headers hdr,
               }
 
         actions = {_nop; copy; copy_trigger; copy_forward; copy_forward_trigger; }
+        size = 10;
+        default_action = _nop;
+    }
+
+    action copy_a () {
+        reg_payload_decoding_buffer_a.write(meta.decoding_metadata.idx, hdr.coding.packet_payload);
+        reg_a_index.write(0, meta.decoding_metadata.idx);
+    }
+
+    action copy_b () {
+        reg_payload_decoding_buffer_b.write(meta.decoding_metadata.idx, hdr.coding.packet_payload);
+        reg_b_index.write(0, meta.decoding_metadata.idx);
+    }
+
+    action copy_x () {
+        reg_payload_decoding_buffer_x.write(meta.decoding_metadata.idx, hdr.coding.packet_payload);
+        reg_x_index.write(0, meta.decoding_metadata.idx);
+    }
+
+    table table_input_gathering {
+        key = {
+                hdr.coding.stream_id: exact;
+                hdr.coding.packet_contents: exact;
+              }
+        actions = {_nop; copy_a; copy_b; copy_x;}
         size = 10;
         default_action = _nop;
     }
@@ -394,30 +419,30 @@ control CodingIngress(inout headers hdr,
             //Logic for decoding
             else if (hdr.coding.next_primitive == CODING_PACKET_TO_DECODE) {
 
-                this_pkt_index = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
+                meta.decoding_metadata.idx = hdr.coding.coded_packets_batch_num % DECODING_BUFFER_SIZE;
 
                 // Get the number of sent out for this batch num
-                reg_num_sent_per_index.read(num_sent_per_index, this_pkt_index);
+                reg_num_sent_per_index.read(num_sent_per_index, meta.decoding_metadata.idx);
 
                 //Get the current occupant batch_num of this index
-                reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, this_pkt_index);
+                reg_rcv_batch_num_per_index.read(rcv_batch_num_per_index, meta.decoding_metadata.idx);
 
                 //If it is zero, then set this current pkt as the occupant --
                 // This is the reason why you init these things from 1
                 if (rcv_batch_num_per_index == 0)
                 {
-                    reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
+                    reg_rcv_batch_num_per_index.write(meta.decoding_metadata.idx, hdr.coding.coded_packets_batch_num);
                 }
 
                 if (meta.decoding_metadata.is_clone == 1)  {
                     //fill up the clone with other payload by using the XOR coded payload in buffer
                     payload_t coded_payload;
-                    reg_payload_decoding_buffer_x.read(coded_payload, this_pkt_index);
+                    reg_payload_decoding_buffer_x.read(coded_payload, meta.decoding_metadata.idx);
                     hdr.coding.packet_payload = hdr.coding.packet_payload ^ coded_payload;
                     hdr.coding.packet_contents = CODING_X;
 
                     // Update here
-                    reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                    reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
                     table_ingress_decode.apply();
                 }
                 else
@@ -427,34 +452,20 @@ control CodingIngress(inout headers hdr,
                      //reset everything.
                     if (hdr.coding.coded_packets_batch_num != rcv_batch_num_per_index)
                     {
-                        reg_num_sent_per_index.write(this_pkt_index, 0);
-
+                        reg_num_sent_per_index.write(meta.decoding_metadata.idx, 0);
                         num_sent_per_index = 0;
 
                         // And put the new batch_num in the buffer
-                        reg_rcv_batch_num_per_index.write(this_pkt_index, hdr.coding.coded_packets_batch_num);
+                        reg_rcv_batch_num_per_index.write(meta.decoding_metadata.idx, hdr.coding.coded_packets_batch_num);
                     }
 
+                    // Do the gathering data gathering operation
+                    table_input_gathering.apply();
+
+                    // Just drop the third packet...
                     if (num_sent_per_index < 2)
                     {
-                        // Update for all non-cloned packets
-
-                        // Copy the packet payload in appropriate buffer and update the index
-                        if (hdr.coding.packet_contents == CODING_A) {
-                            reg_payload_decoding_buffer_a.write(this_pkt_index, hdr.coding.packet_payload);
-                            reg_a_index.write(0, this_pkt_index);
-                        }
-                        else
-                        if (hdr.coding.packet_contents == CODING_B) {
-                            reg_payload_decoding_buffer_b.write(this_pkt_index, hdr.coding.packet_payload);
-                            reg_b_index.write(0, this_pkt_index);
-                        }
-                        else
-                        if (hdr.coding.packet_contents == CODING_X) {
-                            reg_payload_decoding_buffer_x.write(this_pkt_index, hdr.coding.packet_payload);
-                            reg_x_index.write(0, this_pkt_index);
-                        }
-
+                        // Read these up before you do any processing
                         reg_a_index.read(a_index, 0);
                         reg_b_index.read(b_index, 0);
                         reg_x_index.read(x_index, 0);
@@ -463,7 +474,7 @@ control CodingIngress(inout headers hdr,
                         if (hdr.coding.packet_contents == CODING_A || hdr.coding.packet_contents == CODING_B)
                         {
                             // If XOR was already received, then clone/decode and send this
-                            if (x_index >= this_pkt_index)
+                            if (x_index >= meta.decoding_metadata.idx)
                             {
                                 //Clone this packet and send it along
                                 meta.decoding_metadata.is_clone = 1;
@@ -471,13 +482,13 @@ control CodingIngress(inout headers hdr,
                                 clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
 
                                 // Update here
-                                reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                                reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
                                 table_ingress_decode.apply();
                                 }
                             else
                             {
                                 // Update here
-                                reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                                reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
                                 table_ingress_decode.apply();
 
                             }
@@ -492,23 +503,23 @@ control CodingIngress(inout headers hdr,
                                 payload_t uncoded_payload;
 
                                 // check which one of the A or B packet was received...
-                                if (a_index >= this_pkt_index)
+                                if (a_index >= meta.decoding_metadata.idx)
                                 {
-                                    reg_payload_decoding_buffer_a.read(uncoded_payload, this_pkt_index);
+                                    reg_payload_decoding_buffer_a.read(uncoded_payload, meta.decoding_metadata.idx);
                                     payload_t a_payload;
                                     a_payload = hdr.coding.packet_payload ^ uncoded_payload;
                                     hdr.coding.packet_payload = a_payload;
                                 }
                                 else
-                                if (b_index >= this_pkt_index)
+                                if (b_index >= meta.decoding_metadata.idx)
                                 {
-                                    reg_payload_decoding_buffer_b.read(uncoded_payload, this_pkt_index);
+                                    reg_payload_decoding_buffer_b.read(uncoded_payload, meta.decoding_metadata.idx);
                                     payload_t b_payload;
                                     b_payload = hdr.coding.packet_payload ^ uncoded_payload;
                                     hdr.coding.packet_payload = b_payload;
                                 }
                                 // Update here
-                                reg_num_sent_per_index.write(this_pkt_index, num_sent_per_index + 1);
+                                reg_num_sent_per_index.write(meta.decoding_metadata.idx, num_sent_per_index + 1);
                                 table_ingress_decode.apply();
 
                             }

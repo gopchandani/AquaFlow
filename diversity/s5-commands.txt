@@ -1,5 +1,9 @@
 table_set_default switch_stats add_switch_stats 5
 
+table_add table_input_gathering copy_a 1 65 =>
+table_add table_input_gathering copy_b 1 66 =>
+table_add table_input_gathering copy_x 1 88 =>
+
 table_add table_ingress_decode uni_cast 1 => 1
 
 table_add table_egress_decode egress_decode_forward 1 0 => 5

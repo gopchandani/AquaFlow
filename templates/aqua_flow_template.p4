@@ -369,11 +369,7 @@ control CodingIngress(inout headers hdr,
     }
 
     action clone_uni_cast(bit<9> egress_port) {
-        //Clone this packet and send it along
-        meta.decoding_metadata.is_clone = 1;
-        standard_metadata.clone_spec = 450;
-        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
-
+        meta.decoding_metadata.is_clone = 2;
         uni_cast(egress_port);
     }
 
@@ -394,6 +390,9 @@ control CodingIngress(inout headers hdr,
         reg_payload_decoding_buffer_coded.read(coded_payload, meta.decoding_metadata.batch_idx);
         hdr.coding.packet_payload = hdr.coding.packet_payload ^ coded_payload;
         hdr.coding.packet_contents = CODING_X;
+
+        // To indicate that this no longer needs to be cloned/recirculated
+        meta.decoding_metadata.is_clone = 0;
 
         uni_cast(egress_port);
     }
@@ -486,10 +485,13 @@ control CodingIngress(inout headers hdr,
                     reg_per_batch_input_packet_num.write(meta.decoding_metadata.batch_idx, 0);
                 }
 
+                // For non-cloned packets,
                 // Update the register which keeps track of total number of packets received for a batch
-                reg_per_batch_input_packet_num.read(meta.decoding_metadata.per_batch_input_packet_num, meta.decoding_metadata.batch_idx);
-                meta.decoding_metadata.per_batch_input_packet_num = meta.decoding_metadata.per_batch_input_packet_num + 1;
-                reg_per_batch_input_packet_num.write(meta.decoding_metadata.batch_idx, meta.decoding_metadata.per_batch_input_packet_num);
+                if (meta.decoding_metadata.is_clone == 0) {
+                    reg_per_batch_input_packet_num.read(meta.decoding_metadata.per_batch_input_packet_num, meta.decoding_metadata.batch_idx);
+                    meta.decoding_metadata.per_batch_input_packet_num = meta.decoding_metadata.per_batch_input_packet_num + 1;
+                    reg_per_batch_input_packet_num.write(meta.decoding_metadata.batch_idx, meta.decoding_metadata.per_batch_input_packet_num);
+                }
 
                 // Do the gathering data gathering operation
                 // Also, put what packet number for this batch this particular packet is, inside it.
@@ -582,7 +584,19 @@ control CodingEgress(inout headers hdr,
     }
 
     action egress_decode_recirculate_step() {
-        recirculate({meta.intrinsic_metadata, meta.coding_metadata, standard_metadata});
+        remove_switch_stats();
+        recirculate({meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
+    }
+
+    action egress_decode_forward_clone(switchID_t swid) {
+
+        // Stop recursive cloning and trigger recirculation
+        meta.decoding_metadata.is_clone = 1;
+
+        standard_metadata.clone_spec = 450;
+        clone3(CloneType.E2E, standard_metadata.clone_spec, {meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
+
+        add_switch_stats(swid);
     }
 
     table table_egress_decode {
@@ -590,7 +604,7 @@ control CodingEgress(inout headers hdr,
                 hdr.coding.stream_id: exact;
                 meta.decoding_metadata.is_clone: exact;
               }
-        actions = {egress_decode_recirculate_step; egress_decode_forward;}
+        actions = {egress_decode_recirculate_step; egress_decode_forward; egress_decode_forward_clone;}
         size = 10;
     }
 

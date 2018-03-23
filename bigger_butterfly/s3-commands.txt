@@ -1,0 +1,24 @@
+table_set_default switch_stats add_switch_stats 3
+
+table_add table_input_gathering copy_uncoded 1 0 65 1 =>
+table_add table_input_gathering copy_uncoded 1 0 66 1 =>
+table_add table_input_gathering copy_coded   1 0 88 1 =>
+
+table_add table_ingress_decode uni_cast 1 0 65 1 0 => 1
+table_add table_ingress_decode uni_cast 1 0 65 2 0 => 1
+table_add table_ingress_decode clone_uni_cast 1 0 65 2 1 => 1
+
+table_add table_ingress_decode uni_cast 1 0 66 1 0 => 1
+table_add table_ingress_decode uni_cast 1 0 66 2 0 => 1
+table_add table_ingress_decode clone_uni_cast 1 0 66 2 1 => 1
+
+table_add table_ingress_decode decode_using_register 1 0 88 2 0 => 1
+
+table_add table_ingress_decode decode_using_cloned 1 1 65 2 1 => 1
+table_add table_ingress_decode decode_using_cloned 1 1 66 2 1 => 1
+
+table_add table_egress_decode egress_decode_forward 1 0 => 3
+table_add table_egress_decode egress_decode_forward_clone 1 2 => 3
+table_add table_egress_decode egress_decode_recirculate_step 1 1 =>
+
+mirroring_add 450 1

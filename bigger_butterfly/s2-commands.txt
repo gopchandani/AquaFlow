@@ -1,0 +1,2 @@
+table_add table_ingress_forward uni_cast 1 => 1
+table_add table_egress_forward forward_egress_processing_uni_cast 1 0 0 => 2 2

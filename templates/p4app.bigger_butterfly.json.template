@@ -1,0 +1,58 @@
+{
+    "program": "aqua_flow.p4",
+    "language": "p4-16",
+    "targets": {
+      "multiswitch": {
+          "auto-control-plane": true,
+          "cli": true,
+          "pcap_dump": true,
+          "bmv2_log": true,
+          "links": [
+           ["h1", "s1", "@d1@ms", @bw2@],
+           ["h2", "s2", "@d1@ms", @bw2@],
+           ["h3", "s3", "@d1@ms", @bw2@],
+           ["h4", "s4", "@d1@ms", @bw2@],
+           ["s1", "s5", "@d1@ms", @bw@],
+           ["s1", "s6", "@d1@ms", @bw@],
+           ["s1", "s7", "@d1@ms", @bw@],
+           ["s5", "s2", "@d1@ms", @bw@],
+           ["s5", "s3", "@d1@ms", @bw@],
+           ["s6", "s2", "@d1@ms", @bw@],
+           ["s6", "s4", "@d1@ms", @bw@],
+           ["s7", "s3", "@d1@ms", @bw@],
+           ["s7", "s4", "@d1@ms", @bw@]],
+
+          "hosts": {
+            "h1": {
+            },
+            "h2": {
+            },
+            "h3": {
+            }
+          },
+          "switches": {
+              "s1": {
+                  "entries": "s1-commands.txt"
+              },
+              "s2": {
+                  "entries": "s2-commands.txt"
+              },
+              "s3": {
+                  "entries": "s3-commands.txt"
+              },
+              "s4": {
+                  "entries": "s4-commands.txt"
+              },
+              "s5": {
+                  "entries": "s5-commands.txt"
+              },
+              "s6": {
+                  "entries": "s6-commands.txt"
+              },
+              "s7": {
+                  "entries": "s7-commands.txt"
+              }
+          }
+       }
+    }
+}

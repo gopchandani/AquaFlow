@@ -1,0 +1,9 @@
+table_set_default switch_stats add_switch_stats 7
+
+table_add table_ingress_forward bi_cast 1 => 2 3 3
+
+mirroring_add 451 3
+
+table_add table_egress_forward_bi_cast forward_egress_processing_bi_cast_for_orig 1 1 0 => 7
+table_add table_egress_forward_bi_cast forward_egress_processing_bi_cast_for_clone 1 1 1 => 7
+

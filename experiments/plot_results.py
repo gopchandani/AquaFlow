@@ -24,7 +24,7 @@ experiment_dir = AquaFlow_dir + args.experiment_data_dir
 
 
 def plot_diversity_results():
-    payloads = [1024, 2048, 4096]
+    payloads = [128, 1024, 2048, 4096]
     differentials = [-5, -1, 0, 1, 5]
     n_packets = 1000
     m_factor = 1.96 / math.sqrt(n_packets)

@@ -24,7 +24,7 @@ echo "Iface: " $i_face
 echo "NPackets: " $n_packets
 echo "Experiemt type: " $exp_type
 
-for diff in 5 #-5 -1 0 1 5
+for diff in -5 -1 0 1 5
 do
 	for pkt_size in 128 1024 2048 4096
 	do

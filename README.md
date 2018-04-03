@@ -1,4 +1,4 @@
 # AquaFlow
 
-A framework to implement network coding using P4 devices.
+A library of coding primitives for implementing linear network coding functions.
 

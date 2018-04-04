@@ -16,8 +16,6 @@ import numpy as np
 parser = argparse.ArgumentParser(description='send stream')
 parser.add_argument('--npackets',dest="npackets", help='n_packets td send',
                     type=int, action="store", required=True)
-parser.add_argument('--type', dest="type", help='topology_name',
-                    type=str, action="store", default="diversity")
 parser.add_argument('--payload', dest="payload", help='payload size',
                     action="store", required=True)
 
@@ -27,7 +25,6 @@ parser.add_argument('--rate', dest="rate", action="store", type=float, default=0
 args = parser.parse_args()
 
 num_pkts = int(args.npackets)
-args.type = args.type
 payload_size = int(args.payload)
 
 
@@ -51,178 +48,147 @@ bind_layers(Ether, CodingHdrS, type=0x1234)
 def main():
 
     iface = 'h1-eth0'
-    
-    dst_mac = None
 
     global payload_size, args, num_pkts
 
     if payload_size <= 0 :
         payload_size = 1
 
-    if args.type == "butterfly" or args.type == "butterfly_forwarding":
-        dst_mac = "01:0C:CD:01:00:00"
-    elif args.type == "diversity":
-        dst_mac = "00:00:00:00:05:02"
+    time.sleep(2)
+    n_bits = 2*payload_size
+    if args.rate == 0.0 :
+        avg_time_to_sleep = 0.0
     else:
-        print "Incorrect experiment type"
-        sys.exit(0)
+        rate = float(args.rate)*1000000.0
+        time_to_sleep = float(n_bits)/float(rate)
+        avg_time_to_sleep = float(payload_size)/float(rate)
 
+        print "Time to sleep (secs) = ", time_to_sleep
 
-    if args.type == "diversity" :
+    payload_A = "A"*(payload_size/8)
+    payload_B = "B"*(payload_size/8)
 
-        pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload="A" * (payload_size/8))
-        pktA = pktA/' '
+    pktAd = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
+    pktAd = pktAd/' '
 
-        pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload="B" * (payload_size/8))
-        pktB = pktB/' '
+    pktBd = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
+    pktBd = pktBd/' '
 
-        time.sleep(2)
+    curr_send_rate = float(args.rate)
 
-        for i in range(num_pkts/2):
+    for i in range(num_pkts/2):
+
+        if i == 0:
+            curr_time = str(time.time())
+
+            first_pkt_time = float(curr_time)
+            n_chars = (payload_size/8)
+
+            payload_A = "A"
+            payload_B = "B"
+
+            n_chars_left = n_chars - 1 - len(curr_time)
+
+            payload_A = payload_A + ("0"* n_chars_left)
+            payload_B = payload_B + ("0"* n_chars_left)
+
+            payload_A = payload_A + curr_time
+            payload_B = payload_B + curr_time
+
+            pktA = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
+            pktA = pktA/' '
+
+            pktB = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
+            pktB = pktB/' '
+            start_time = float(curr_time)
             sendp(pktA, iface=iface)
+            end_time = float(time.time())
+            elapsed = end_time - start_time
+
+            time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+            if time_to_sleep - elapsed > 0 :
+                time.sleep(time_to_sleep - elapsed)
+
+
+            start_time = float(time.time())
             sendp(pktB, iface=iface)
+            end_time = float(time.time())
+            elapsed = end_time - start_time
 
-    else:
+            time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+            if time_to_sleep - elapsed > 0 :
+                time.sleep(time_to_sleep - elapsed)
 
-        time.sleep(2)
-        n_bits = 2*payload_size
-        if args.rate == 0.0 :
-            avg_time_to_sleep = 0.0
+        elif i == num_pkts/2 - 1:
+            curr_send_rate_str = str(curr_send_rate)
+            payload_A = "A"
+            payload_B = "B"
+
+            n_chars_left = n_chars - 1 - len(curr_send_rate_str)
+
+            payload_A = payload_A + ("0"* n_chars_left)
+            payload_B = payload_B + ("0"* n_chars_left)
+
+            payload_A = payload_A + curr_send_rate_str
+            payload_B = payload_B + curr_send_rate_str
+
+            pktA = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
+            pktA = pktA/' '
+
+            pktB = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
+            pktB = pktB/' '
+
+            start_time = float(time.time())
+            sendp(pktA, iface=iface)
+            end_time = float(time.time())
+            elapsed = end_time - start_time
+
+            time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+            if time_to_sleep - elapsed > 0 :
+                time.sleep(time_to_sleep - elapsed)
+
+
+            start_time = float(time.time())
+            sendp(pktB, iface=iface)
+            end_time = float(time.time())
+            elapsed = end_time - start_time
+            last_pkt_time = float(end_time)
+
+            time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+            if time_to_sleep - elapsed > 0 :
+                time.sleep(time_to_sleep - elapsed)
+
         else:
-            rate = float(args.rate)*1000000.0
-            time_to_sleep = float(n_bits)/float(rate)
-            avg_time_to_sleep = float(payload_size)/float(rate)
 
-            print "Time to sleep (secs) = ", time_to_sleep
+            start_time = float(time.time())
+            sendp(pktA, iface=iface)
+            end_time = float(time.time())
+            elapsed = end_time - start_time
 
-        payload_A = "A"*(payload_size/8)
-        payload_B = "B"*(payload_size/8)
-
-        pktAd = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
-        pktAd = pktAd/' '
-
-        pktBd = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
-        pktBd = pktBd/' '
-
-        curr_send_rate = float(args.rate)
-        
-        for i in range(num_pkts/2):
-
-            if i == 0 :
-                curr_time = str(time.time())
-
-                first_pkt_time = float(curr_time)
-                n_chars = (payload_size/8)
-
-                payload_A = "A"
-                payload_B = "B"
-
-                n_chars_left = n_chars - 1 - len(curr_time)
-
-                payload_A = payload_A + ("0"* n_chars_left)
-                payload_B = payload_B + ("0"* n_chars_left)
-
-                payload_A = payload_A + curr_time
-                payload_B = payload_B + curr_time
-
-                pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
-                pktA = pktA/' '
-
-                pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
-                pktB = pktB/' '
-                start_time = float(curr_time)
-                sendp(pktA, iface=iface)
-                end_time = float(time.time())
-                elapsed = end_time - start_time
+            time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+            if time_to_sleep - elapsed > 0 :
+                time.sleep(time_to_sleep - elapsed)
 
 
-                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
-                if time_to_sleep - elapsed > 0 :
-                    time.sleep(time_to_sleep - elapsed)
+            start_time = float(time.time())
+            sendp(pktB, iface=iface)
+            end_time = float(time.time())
+            elapsed = end_time - start_time
+            last_pkt_time = float(end_time)
 
+            time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
+            if time_to_sleep - elapsed > 0 :
+                time.sleep(time_to_sleep - elapsed)
 
-                start_time = float(time.time()) 
-                sendp(pktB, iface=iface)
-                end_time = float(time.time())
-                elapsed = end_time - start_time
+            curr_send_rate = float(payload_size*2*(i+1))/float((last_pkt_time - first_pkt_time)*10**6)
 
-                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
-                if time_to_sleep - elapsed > 0 :
-                    time.sleep(time_to_sleep - elapsed)
+        print "Pkt batch send time: ", time.time()
 
+        #if(time_to_sleep > 0.0) :
+        #    if time_to_sleep - elapsed > 0.0 :
+        #        time.sleep(float(time_to_sleep) - elapsed)
 
-
-                
-            elif i == num_pkts/2 - 1:
-                curr_send_rate_str = str(curr_send_rate)
-                payload_A = "A"
-                payload_B = "B"
-
-                n_chars_left = n_chars - 1 - len(curr_send_rate_str)
-
-                payload_A = payload_A + ("0"* n_chars_left)
-                payload_B = payload_B + ("0"* n_chars_left)
-
-                payload_A = payload_A + curr_send_rate_str
-                payload_B = payload_B + curr_send_rate_str
-
-                pktA = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='A', packet_payload=payload_A)
-                pktA = pktA/' '
-
-                pktB = Ether(dst=dst_mac, type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
-                pktB = pktB/' '
-                
-                start_time = float(time.time())
-                sendp(pktA, iface=iface)
-                end_time = float(time.time())
-                elapsed = end_time - start_time                
-
-                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
-                if time_to_sleep - elapsed > 0 :
-                    time.sleep(time_to_sleep - elapsed)
-
-
-                start_time = float(time.time())
-                sendp(pktB, iface=iface)         
-                end_time = float(time.time())
-                elapsed = end_time - start_time  
-                last_pkt_time = float(end_time)              
-
-                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
-                if time_to_sleep - elapsed > 0 :
-                    time.sleep(time_to_sleep - elapsed)
-                
-            else:
-
-                start_time = float(time.time())
-                sendp(pktA, iface=iface)
-                end_time = float(time.time())
-                elapsed = end_time - start_time                
-
-                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
-                if time_to_sleep - elapsed > 0 :
-                    time.sleep(time_to_sleep - elapsed)
-
-
-                start_time = float(time.time())
-                sendp(pktB, iface=iface)         
-                end_time = float(time.time())
-                elapsed = end_time - start_time  
-                last_pkt_time = float(end_time)              
-
-                time_to_sleep = np.random.exponential(scale=avg_time_to_sleep)
-                if time_to_sleep - elapsed > 0 :
-                    time.sleep(time_to_sleep - elapsed)
-
-                curr_send_rate = float(payload_size*2*(i+1))/float((last_pkt_time - first_pkt_time)*10**6)
-            
-            print "Pkt batch send time: ", time.time()
-
-            #if(time_to_sleep > 0.0) :
-            #    if time_to_sleep - elapsed > 0.0 :
-            #        time.sleep(float(time_to_sleep) - elapsed)
-
-        print "Send Rate (Mbits per sec): ", curr_send_rate
+    print "Send Rate (Mbits per sec): ", curr_send_rate
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
-table_add table_input_splitting copy 1 0 =>
-table_add table_input_splitting copy_trigger 1 1 =>
-table_add table_ingress_code code_forward_passive 1 0 0 => 3 0
+table_add CodingIngress.table_input_splitting CodingIngress.copy 1 0 =>
+table_add CodingIngress.table_input_splitting CodingIngress.copy_trigger 1 1 =>
+table_add CodingIngress.table_ingress_code CodingIngress.code_forward_passive 1 0 0 => 3 0
 
-table_set_default switch_stats add_switch_stats 4
+table_set_default CodingEgress.switch_stats CodingEgress.add_switch_stats 4

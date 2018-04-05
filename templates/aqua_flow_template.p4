@@ -528,6 +528,7 @@ control CodingEgress(inout headers hdr,
     action add_switch_stats(switchID_t swid) {
         hdr.stats.num_switch_stats = hdr.stats.num_switch_stats + 1;
         hdr.switch_stats.push_front(1);
+        hdr.switch_stats[0].setValid();
         hdr.switch_stats[0].swid = swid;
         hdr.switch_stats[0].igt = (ingress_global_timestamp_t)standard_metadata.ingress_global_timestamp;
         hdr.switch_stats[0].enqt = (enq_timestamp_t)standard_metadata.enq_timestamp;

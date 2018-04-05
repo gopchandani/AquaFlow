@@ -1,5 +1,0 @@
-table_add table_input_splitting copy 01:0C:CD:01:00:00 0 =>
-table_add table_input_splitting copy_trigger 01:0C:CD:01:00:00 1 =>
-table_add table_ingress_code code_forward_passive 01:0C:CD:01:00:00 0 0 => 3 0
-
-table_set_default switch_stats add_switch_stats 4

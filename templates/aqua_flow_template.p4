@@ -36,15 +36,23 @@ header ethernet_t {
     bit<16> etherType;
 }
 
+header ieee8021q_t {
+    bit<3>  pcp;
+    bit<1>  cfi;
+    bit<12> vid;
+    bit<16> etherType;
+}
+
 #define MAX_HOPS 9
 
-const bit<16> CODING_ETYPE = 0x1234;
-const bit<8>  CODING_P     = 0x50;   // 'P'
-const bit<8>  CODING_4     = 0x34;   // '4'
-const bit<8>  CODING_A     = 0x41;   // 'A'
-const bit<8>  CODING_B     = 0x42;   // 'B'
-const bit<8>  CODING_X     = 0x58;   // 'X'
-const bit<8>  CODING_VER   = 0x01;   // v0.1
+const bit<16> IEEE80211Q_ETYPE  = 0x8100;
+const bit<16> CODING_ETYPE      = 0x1234;
+const bit<8>  CODING_P          = 0x50;   // 'P'
+const bit<8>  CODING_4          = 0x34;   // '4'
+const bit<8>  CODING_A          = 0x41;   // 'A'
+const bit<8>  CODING_B          = 0x42;   // 'B'
+const bit<8>  CODING_X          = 0x58;   // 'X'
+const bit<8>  CODING_VER        = 0x01;   // v0.1
 
 const bit<8>  CODING_PACKET_TO_CODE     = 0x01;
 const bit<8>  CODING_PACKET_TO_FORWARD  = 0x02;
@@ -94,6 +102,7 @@ header switch_stats_t {
  */
 struct headers {
     ethernet_t                  ethernet;
+    ieee8021q_t                 ieee8021q;
     stats_hdr_t                 stats;
     switch_stats_t[MAX_HOPS]    switch_stats;
     coding_hdr_t                coding;
@@ -154,9 +163,15 @@ parser CodingParser(packet_in packet,
     state start {
         packet.extract(hdr.ethernet);
         transition select(hdr.ethernet.etherType) {
-            CODING_ETYPE : parse_stats;
-            default      : accept;
+            CODING_ETYPE :      parse_stats;
+            IEEE80211Q_ETYPE:   parse_ieee80211q;
+            default      :      accept;
         }
+    }
+
+    state parse_ieee80211q {
+        packet.extract(hdr.ieee8021q);
+        transition accept;
     }
 
     state parse_stats {
@@ -423,7 +438,7 @@ control CodingIngress(inout headers hdr,
 
     apply
     {
-        if (hdr.coding.isValid()) {
+        if (hdr.ieee8021q.isValid()) {
 
             //Logic for Coding
             if (hdr.coding.next_primitive == CODING_PACKET_TO_CODE) {
@@ -654,7 +669,7 @@ control CodingEgress(inout headers hdr,
     }
 
     apply {
-        if (hdr.coding.isValid()) {
+        if (hdr.ieee8021q.isValid()) {
 
             if (meta.forwarding_metadata.is_bi_cast == 0) {
 

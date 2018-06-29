@@ -439,20 +439,6 @@ control CodingIngress(inout headers hdr,
     apply
     {
         if (hdr.ieee8021q.isValid()) {
-            // Add the coding header
-
-            hdr.coding.setValid();
-            hdr.coding.p = CODING_P;
-            hdr.coding.four = CODING_4;
-            hdr.coding.ver = CODING_VER;
-            hdr.coding.stream_id = 1;
-            hdr.coding.next_primitive = 1;
-            hdr.coding.packet_contents = CODING_A;
-            hdr.coding.coded_packets_batch_num = 1;
-            hdr.coding.packet_payload = 0;
-
-            // Resubmit the packet
-            resubmit({meta.intrinsic_metadata, meta.decoding_metadata, standard_metadata});
 
         }
         else
@@ -687,6 +673,28 @@ control CodingEgress(inout headers hdr,
     }
 
     apply {
+        if (hdr.ieee8021q.isValid()) {
+
+            // Add the coding header
+
+            hdr.coding.setValid();
+            hdr.coding.p = CODING_P;
+            hdr.coding.four = CODING_4;
+            hdr.coding.ver = CODING_VER;
+            hdr.coding.stream_id = 1;
+            hdr.coding.next_primitive = CODING_PACKET_TO_CODE;
+            hdr.coding.packet_contents = CODING_A;
+            hdr.coding.coded_packets_batch_num = 1;
+            hdr.coding.packet_payload = 0;
+
+            // Set the correct etherType to avoid loops
+            hdr.ethernet.etherType = CODING_ETYPE;
+
+            // Resubmit the packet
+            recirculate({});
+
+        }
+        else
         if (hdr.coding.isValid()) {
 
             if (meta.forwarding_metadata.is_bi_cast == 0) {

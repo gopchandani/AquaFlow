@@ -1,2 +1,2 @@
-table_add CodingIngress.table_ingress_forward CodingIngress.uni_cast 1 => 2
-table_add CodingEgress.table_egress_forward CodingEgress.forward_egress_processing_uni_cast 1 0 0 => 2 3
+table_add table_ingress_forward uni_cast 1 => 2
+table_add table_egress_forward forward_egress_processing_uni_cast 1 0 0 => 2 3

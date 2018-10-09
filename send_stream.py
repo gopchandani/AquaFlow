@@ -19,6 +19,8 @@ parser.add_argument('--npackets',dest="npackets", help='n_packets td send',
 parser.add_argument('--payload', dest="payload", help='payload size',
                     action="store", required=True)
 
+parser.add_argument('--iface', dest="iface", help='Interface name',
+                    type=str, action="store", default="h1-eth0")
 parser.add_argument('--rate', dest="rate", action="store", type=float, default=0.0, help="send rate in Mbits per sec")
 
 
@@ -46,8 +48,6 @@ bind_layers(Ether, CodingHdrS, type=0x1234)
 
 
 def main():
-
-    iface = 'h1-eth0'
 
     global payload_size, args, num_pkts
 
@@ -101,7 +101,7 @@ def main():
             pktB = Ether(type=0x1234) / CodingHdrS(num_switch_stats=0, packet_contents='B', packet_payload=payload_B)
             pktB = pktB/' '
             start_time = float(curr_time)
-            sendp(pktA, iface=iface)
+            sendp(pktA, iface=args.iface)
             end_time = float(time.time())
             elapsed = end_time - start_time
 
@@ -111,7 +111,7 @@ def main():
 
 
             start_time = float(time.time())
-            sendp(pktB, iface=iface)
+            sendp(pktB, iface=args.iface)
             end_time = float(time.time())
             elapsed = end_time - start_time
 
@@ -139,7 +139,7 @@ def main():
             pktB = pktB/' '
 
             start_time = float(time.time())
-            sendp(pktA, iface=iface)
+            sendp(pktA, iface=args.iface)
             end_time = float(time.time())
             elapsed = end_time - start_time
 
@@ -149,7 +149,7 @@ def main():
 
 
             start_time = float(time.time())
-            sendp(pktB, iface=iface)
+            sendp(pktB, iface=args.iface)
             end_time = float(time.time())
             elapsed = end_time - start_time
             last_pkt_time = float(end_time)
@@ -161,7 +161,7 @@ def main():
         else:
 
             start_time = float(time.time())
-            sendp(pktA, iface=iface)
+            sendp(pktA, iface=args.iface)
             end_time = float(time.time())
             elapsed = end_time - start_time
 
@@ -171,7 +171,7 @@ def main():
 
 
             start_time = float(time.time())
-            sendp(pktB, iface=iface)
+            sendp(pktB, iface=args.iface)
             end_time = float(time.time())
             elapsed = end_time - start_time
             last_pkt_time = float(end_time)

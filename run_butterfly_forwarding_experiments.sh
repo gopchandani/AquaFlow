@@ -6,7 +6,7 @@ OPTIND=1
 # Initialize our own variables:
 i_face_1="h2-eth0"
 i_face_2="h3-eth0"
-n_packets=100
+n_packets=700
 exp_type="butterfly_forwarding"
 bandwidth=0.05
 

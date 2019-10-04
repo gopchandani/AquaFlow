@@ -23,6 +23,7 @@ parser.add_argument('--iface', dest="iface", help='Interface name',
                     type=str, action="store", default="h1-eth0")
 parser.add_argument('--rate', dest="rate", action="store", type=float, default=0.0, help="send rate in Mbits per sec")
 
+parser.add_argument('--type', dest="type", help='experiment type', action="store", default="diversity", required=False)
 
 args = parser.parse_args()
 

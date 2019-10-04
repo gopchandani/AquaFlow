@@ -6,7 +6,6 @@ import matplotlib
 import json
 import numpy as np
 import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d.axes3d as axes3d
 import math
 
 AquaFlow_dir = os.path.dirname(os.path.realpath(__file__))
@@ -171,12 +170,20 @@ def plot_butterfly_results():
             coding_throughput.append(
                 float(rcvd_pkt_metrics_dict2['throughput']) / float(rcvd_pkt_metrics_dict2['send_rate']))
 
-        if rcvd_pkt_metrics_dict3['time_diff'] > rcvd_pkt_metrics_dict4['time_diff']:
-            forwarding_throughput.append(
-                float(rcvd_pkt_metrics_dict3['throughput']) / float(rcvd_pkt_metrics_dict3['send_rate']))
-        else:
-            forwarding_throughput.append(
-                float(rcvd_pkt_metrics_dict4['throughput']) / float(rcvd_pkt_metrics_dict4['send_rate']))
+        val1 = (float(rcvd_pkt_metrics_dict3['throughput']) + float(rcvd_pkt_metrics_dict4['throughput'])) / (2 * float(rcvd_pkt_metrics_dict3['send_rate']))
+        val2 = float(rcvd_pkt_metrics_dict3['throughput']) / float(rcvd_pkt_metrics_dict3['send_rate'])
+        val3 = float(rcvd_pkt_metrics_dict4['throughput']) / float(rcvd_pkt_metrics_dict4['send_rate'])
+
+        print "Forwarding:", val1, val2, val3
+
+        forwarding_throughput.append(val1)
+
+        # if rcvd_pkt_metrics_dict3['time_diff'] > rcvd_pkt_metrics_dict4['time_diff']:
+        #     forwarding_throughput.append(
+        #         float(rcvd_pkt_metrics_dict3['throughput']) / float(rcvd_pkt_metrics_dict3['send_rate']))
+        # else:
+        #     forwarding_throughput.append(
+        #         float(rcvd_pkt_metrics_dict4['throughput']) / float(rcvd_pkt_metrics_dict4['send_rate']))
 
     fig = plt.figure(dpi=100)
     ax = fig.add_subplot(111)
@@ -194,6 +201,7 @@ def plot_butterfly_results():
     ax.set_xticks(rates)
 
     plt.show()
+    plt.savefig("butterfly_experiment.png")
 
 
 if args.type == "diversity":

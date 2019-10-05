@@ -200,8 +200,9 @@ def plot_butterfly_results():
     ax.legend(loc=9, ncol=2, fontsize=11, bbox_to_anchor=(0, 1.02, 1, .102))
     ax.set_xticks(rates)
 
-    plt.show()
     plt.savefig("butterfly_experiment.png")
+
+    plt.show()
 
 
 if args.type == "diversity":
